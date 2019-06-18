@@ -16,5 +16,5 @@
   "epoch": 300,
   "eval_freq": 1,
   "glove_path": "./glove/glove.{}B.{}d.txt",
-  "save_dir": "./saved_models/frompredictor/",
+  "save_dir": "./saved_models/frompredictor/"
 }

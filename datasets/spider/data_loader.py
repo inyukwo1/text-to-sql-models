@@ -39,8 +39,7 @@ class DataLoader():
 
     def _get(self, data):
         data_len = len(data)
-        #for i in tqdm.tqdm(range(0, data_len, self.batch_size)):
-        for i in tqdm.tqdm(range(0, 10, self.batch_size)):
+        for i in tqdm.tqdm(range(0, data_len, self.batch_size)):
             yield(data[i:min(i+self.batch_size, data_len)])
 
     def _load(self, path, load_option=None):
