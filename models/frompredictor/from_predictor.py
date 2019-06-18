@@ -121,7 +121,7 @@ class FromPredictor(nn.Module):
         loss = F.binary_cross_entropy_with_logits(score, labels)
         return loss
 
-    def check_acc(self, scores, gt_data):
+    def check_acc(self, scores, gt_data, batch=None, log=False):
         # Parse Input
         graph, table_graph_list, full_graph_lists, foreign_keys, primary_keys = gt_data
 
@@ -130,19 +130,30 @@ class FromPredictor(nn.Module):
         full_graphs = []
         for i in range(len(scores)):
             selected_graph = table_graph_list[i][np.argmax(scores[i])]
-            new_graph = {}
+            ans_graph = {}
             for t in graph[i]:
-                new_graph[int(t)] = graph[i][t]
-
-            graph_correct = graph_checker(selected_graph, new_graph, foreign_keys[i], primary_keys[i])
+                ans_graph[int(t)] = graph[i][t]
+            graph_correct = graph_checker(selected_graph, ans_graph, foreign_keys[i], primary_keys[i])
+            if log:
+                print("==========================================")
+                print("question: {}".format(batch[i]["question"]))
+                print("sql: {}".format(batch[i]["query"]))
+                for table_num, table_name in enumerate(batch[i]["tbl"]):
+                    print("Table: {}".format(table_name))
+                    for col_num, (par_num, col_name) in enumerate(batch[i]["column"]):
+                        if par_num == table_num:
+                            print("  {}: {}".format(col_num, col_name))
+                print("ans: {}".format(ans_graph))
+                print("selected: {}".format(selected_graph))
+                print(graph_correct)
             graph_correct_list.append(graph_correct)
             selected_tbls.append(selected_graph.keys())
             full_graphs.append(full_graph_lists[i][np.argmax(scores[i])])
 
         return graph_correct_list, selected_tbls, full_graphs
 
-    def evaluate(self, score, gt_data):
-        return self.check_acc(score, gt_data)[0].count(True)
+    def evaluate(self, score, gt_data, batch=None, log=False):
+        return self.check_acc(score, gt_data, batch, log)[0].count(True)
 
     def preprocess(self, batch):
         q_seq = []

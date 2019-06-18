@@ -6,9 +6,6 @@ import datetime
 from commons.utils import train, eval
 
 if __name__ == '__main__':
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = '7'
-
     # Parse Arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default='', help='Model Name')

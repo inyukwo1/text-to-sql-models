@@ -7,6 +7,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default='', help='Model Name')
     parser.add_argument('--data_name', type=str, default='', help='Dataset Name')
+    parser.add_argument('--log', action='store_true')
     args = parser.parse_args()
 
     # Load Model
@@ -31,7 +32,7 @@ if __name__ == '__main__':
         exit(-1)
 
     model = Model(H_PARAMS)
-    #model.load_model()
+    model.load_model()
 
     # Load DataLoader
     if args.data_name == 'spider':
@@ -51,7 +52,7 @@ if __name__ == '__main__':
 
     # Testing
     if args.model_name == 'frompredictor':
-        acc = eval(model, dataloader)
+        acc = eval(model, dataloader, log=args.log)
         print('Average Acc:{}'.format(acc))
     else:
         test(model, dataloader, H_PARAMS['output_path'])

@@ -29,7 +29,7 @@ def train(model, dataloader):
 
 
 # Evaluation during training
-def eval(model, dataloader):
+def eval(model, dataloader, log=False):
     total_acc = np.zeros(model.acc_num)
     model.eval()
     dataloader.shuffle()
@@ -42,7 +42,7 @@ def eval(model, dataloader):
         score = model.forward(input_data)
 
         # Generate Query
-        acc = model.evaluate(score, gt_data)
+        acc = model.evaluate(score, gt_data, batch, log=log)
 
         total_acc += acc
     return total_acc / dataloader.get_eval_len()

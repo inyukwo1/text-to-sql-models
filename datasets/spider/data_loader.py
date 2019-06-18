@@ -64,12 +64,12 @@ class DataLoader():
             sql_tmp['query_toks'] = item['query_toks']
             sql_tmp['sql'] = item['sql']
             sql_tmp['from'] = item['sql']['from']
-            sql_tmp['column'] = db['column_names_original']
+            sql_tmp['column'] = db['column_names']
 
             # DB info
             sql_tmp['db_id'] = item['db_id']
             sql_tmp['db'] = self.schemas[item['db_id']]
-            sql_tmp['tbl'] = db['table_names_original']
+            sql_tmp['tbl'] = db['table_names']
             sql_tmp['foreign_keys'] = db['foreign_keys']
             sql_tmp['primary_keys'] = db['primary_keys']
 

@@ -1,5 +1,5 @@
 {
-  "N_h": 120,
+  "N_h": 200,
   "N_depth": 2,
   "gpu": true,
   "use_hs": true,
@@ -11,7 +11,7 @@
   "encoded_num": 1024,
   "batch_size": 2,
   "use_small": true,
-  "lr": 1e-3,
+  "lr": 1e-4,
   "weight_decay": 0,
   "epoch": 300,
   "eval_freq": 1,
