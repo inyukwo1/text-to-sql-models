@@ -47,9 +47,9 @@ class FromPredictor(nn.Module):
         dev_type = 'cuda' if self.gpu else 'cpu'
         device = torch.device(dev_type)
 
-        self.from_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "from_models.dump"), map_location=device))
-        self.bert_model.main_bert.load_state_dict(torch.load(os.path.join(self.save_dir, "bert_from_models.dump"), map_location=device))
-        self.bert_model.bert_param.load_state_dict(torch.load(os.path.join(self.save_dir, "bert_from_params.dump"), map_location=device))
+        self.load_state_dict(torch.load(os.path.join(self.save_dir, "from_models.dump"), map_location=device))
+        self.bert.main_bert.load_state_dict(torch.load(os.path.join(self.save_dir, "bert_from_models.dump"), map_location=device))
+        self.bert.bert_param.load_state_dict(torch.load(os.path.join(self.save_dir, "bert_from_params.dump"), map_location=device))
 
 
     def save_model(self, acc):
@@ -134,7 +134,7 @@ class FromPredictor(nn.Module):
             for t in graph[i]:
                 ans_graph[int(t)] = graph[i][t]
             graph_correct = graph_checker(selected_graph, ans_graph, foreign_keys[i], primary_keys[i])
-            if log:
+            if log and not graph_correct:
                 print("==========================================")
                 print("question: {}".format(batch[i]["question"]))
                 print("sql: {}".format(batch[i]["query"]))
@@ -145,6 +145,11 @@ class FromPredictor(nn.Module):
                             print("  {}: {}".format(col_num, col_name))
                 print("ans: {}".format(ans_graph))
                 print("selected: {}".format(selected_graph))
+                print("cands: ")
+                for cand_idx in range(len(scores[i])):
+                    print(table_graph_list[i][cand_idx])
+                    print("score: {}".format(scores[i][cand_idx]))
+                    print("%%%")
                 print(graph_correct)
             graph_correct_list.append(graph_correct)
             selected_tbls.append(selected_graph.keys())

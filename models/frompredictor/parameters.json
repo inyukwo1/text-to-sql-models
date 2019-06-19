@@ -1,5 +1,5 @@
 {
-  "N_h": 200,
+  "N_h": 300,
   "N_depth": 2,
   "gpu": true,
   "use_hs": true,
@@ -9,7 +9,7 @@
   "bert_lr": 1e-5,
   "onefrom": true,
   "encoded_num": 1024,
-  "batch_size": 2,
+  "batch_size": 6,
   "use_small": true,
   "lr": 1e-4,
   "weight_decay": 0,
