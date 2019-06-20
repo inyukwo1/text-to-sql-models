@@ -56,3 +56,14 @@ class Schema:
             if self.get_parent_table_id(col_id) == table_id:
                 col_ids.append(col_id)
         return col_ids
+
+    def get_neighbor_table_ids(self, table_id):
+        neighbor_table_ids = set()
+        for f, p in self._foreign_primary_pairs:
+            foreign_parent = self.get_parent_table_id(f)
+            primary_parent = self.get_parent_table_id(p)
+            if table_id == foreign_parent:
+                neighbor_table_ids.add(primary_parent)
+            if table_id == primary_parent:
+                neighbor_table_ids.add(foreign_parent)
+        return list(neighbor_table_ids)

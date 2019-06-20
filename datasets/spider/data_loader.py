@@ -3,6 +3,7 @@ import json
 import tqdm
 import random
 from datasets.schema import Schema
+from models.frompredictor.ontology import Ontology
 
 WHERE_OPS = ('not', 'between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'exists')
 UNIT_OPS = ('none', '-', '+', "*", '/')
@@ -181,10 +182,13 @@ class DataLoader():
                     join_table_dict[table_unit] = list(join_table_dict[table_unit])
 
             sql_tmp['join_table_dict'] = join_table_dict
+            ontology = Ontology()
+            ontology.import_from_sql(item['sql'])
+            sql_tmp['ontology'] = ontology
 
             sql_list.append(sql_tmp)
-
         return sql_list
+
 
     def shuffle(self):
         if self.train_data:

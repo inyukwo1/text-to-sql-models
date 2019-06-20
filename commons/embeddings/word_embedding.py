@@ -8,6 +8,7 @@ import numpy as np
 from pytorch_pretrained_bert import BertTokenizer
 from commons.embeddings.graph_utils import *
 from datasets.schema import Schema
+from models.frompredictor.ontology import Ontology
 from typing import List
 
 
@@ -171,33 +172,21 @@ class WordEmbedding(nn.Module):
             tokenized_q = tokenized_q.cuda()
         return tokenized_q, q_len
 
-    def encode_one_q_with_bert(self, one_q, schema: Schema, table_graph):
+    def encode_one_q_with_bert(self, one_q, schema: Schema, ontology: Ontology):
         input_q = "[CLS] " + " ".join(one_q)
         one_q_q_len = len(self.bert_tokenizer.tokenize(input_q))
-        for table_num in table_graph:
+        for table_num in ontology.tables:
             input_q += " [SEP] " + schema.get_table_name(table_num)
         # table_names = [tables[idx][table_num] for table_num in generated_graph]
         # input_q += " ".join(table_names)
 
-        sep_embeddings = list(range(len(table_graph)))
-        for k_idx, k in enumerate(table_graph):
-            for col_id in schema.get_child_col_ids(k):
-                col_name = schema.get_col_name(col_id)
-                input_q += " [SEP] " + col_name
-                sep_embeddings.append(k_idx)
+        for col_id in ontology.cols:
+            input_q += " [SEP] " + schema.get_col_name(col_id)
 
         tokenozed_one_q = self.bert_tokenizer.tokenize(input_q)
         indexed_one_q = self.bert_tokenizer.convert_tokens_to_ids(tokenozed_one_q)
 
-        sep_embeddings_per_loc = []
-        cur_sep_cnt = -1
-        for token_idx, token in enumerate(tokenozed_one_q):
-            if token == '[SEP]':
-                cur_sep_cnt += 1
-                sep_embeddings_per_loc.append(sep_embeddings[cur_sep_cnt])
-            else:
-                sep_embeddings_per_loc.append(-1)
-        return one_q_q_len, indexed_one_q, sep_embeddings_per_loc
+        return one_q_q_len, indexed_one_q, []
 
     def gen_col_batch(self, cols):
         ret = []
@@ -337,7 +326,7 @@ class WordEmbedding(nn.Module):
 
         return val_inp_var, val_len
 
-    def gen_bert_batch_with_table(self, q, schemas: List[Schema], labels):
+    def gen_bert_batch_with_table(self, q, schemas: List[Schema], labels: List[Ontology]):
         tokenized_q = []
         q_len = []
         q_q_len = []
@@ -345,17 +334,19 @@ class WordEmbedding(nn.Module):
         sep_embeddings = []
         for idx, one_q in enumerate(q):
             if random.randint(0, 100) < 7:
-                true_graph = 1.
-                generated_graph = str_graph_to_num_graph(labels[idx])
+                true_ontology = 1.
+                ontology = labels[idx]
+            # TODO generate similar ontology?
             else:
-                true_graph = 0.
-                generated_graph = generate_random_graph_generate(schemas[idx])
-                if graph_checker(generated_graph, labels[idx], schemas[idx]):
-                    true_graph = 1.
-            anses.append(true_graph)
+                true_ontology = 0.
+                ontology = Ontology()
+                ontology.random_from_schema(schemas[idx])
+                if ontology.is_same(labels[idx]):
+                    true_ontology = 1.
+            anses.append(true_ontology)
 
             one_q_q_len, indexed_one_q, one_sep_embeddings \
-                = self.encode_one_q_with_bert(one_q, schemas[idx], generated_graph)
+                = self.encode_one_q_with_bert(one_q, schemas[idx], ontology)
             q_q_len.append(one_q_q_len)
             tokenized_q.append(indexed_one_q)
             q_len.append(len(indexed_one_q))
@@ -371,28 +362,24 @@ class WordEmbedding(nn.Module):
             anses = anses.cuda()
         return tokenized_q, q_len, q_q_len, anses, sep_embeddings
 
-    def gen_bert_for_eval(self, one_q, schema: Schema):
+    def gen_bert_for_eval(self, one_q, schema: Schema, label: Ontology):
         tokenized_q = []
         sep_embeddings = []
-        table_graph_lists = []
+        ontology_lists = [label]
 
-        for tab in schema.get_all_table_ids():
-            table_graph_lists += list(generate_four_hop_path_from_seed(tab, schema))
+        for _ in range(20):
+            ontology = Ontology()
+            ontology.random_from_schema(schema)
+            if not ontology.is_same(label):
+                ontology_lists.append(ontology)
 
-        simple_graph_lists = []
-        for graph in table_graph_lists:
-            new_graph = deepcopy(graph)
-            for k in new_graph:
-                for idx, l in enumerate(new_graph[k]):
-                    new_graph[k][idx] = l[0]
-            simple_graph_lists.append(new_graph)
-        B = len(table_graph_lists)
+        B = len(ontology_lists)
         q_len = []
         q_q_len = []
         for b in range(B):
 
             one_q_q_len, indexed_one_q, one_sep_embeddings \
-                = self.encode_one_q_with_bert(one_q, schema, simple_graph_lists[b])
+                = self.encode_one_q_with_bert(one_q, schema, ontology_lists[b])
             q_q_len.append(one_q_q_len)
             tokenized_q.append(indexed_one_q)
             q_len.append(len(indexed_one_q))
@@ -404,7 +391,7 @@ class WordEmbedding(nn.Module):
         tokenized_q = torch.LongTensor(tokenized_q)
         if self.gpu:
             tokenized_q = tokenized_q.cuda()
-        return tokenized_q, q_len, q_q_len, simple_graph_lists, table_graph_lists, sep_embeddings
+        return tokenized_q, q_len, q_q_len, ontology_lists, sep_embeddings
 
     def gen_word_list_embedding(self,words,B):
         val_emb_array = np.zeros((B,len(words), self.N_word), dtype=np.float32)
