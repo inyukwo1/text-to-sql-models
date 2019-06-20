@@ -11,6 +11,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', type=str, default='', help='Model Name')
     parser.add_argument('--data_name', type=str, default='', help='Dataset Name')
     parser.add_argument('--param', type=str, default='parameters.json', help='json file containing parameters')
+    parser.add_argument('--not_save', action='store_true')
     args = parser.parse_args()
 
     # Load Model
@@ -62,7 +63,7 @@ if __name__ == '__main__':
         if not epoch % H_PARAMS['eval_freq']:
             print('Evaluating...', end='')
             total_acc = eval(model, dataloader)
-
-            # Save model if high acc
-            model.save_model(total_acc)
+            if not args.not_save:
+                # Save model if high acc
+                model.save_model(total_acc)
 

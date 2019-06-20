@@ -2,6 +2,7 @@ import os
 import json
 import tqdm
 import random
+from datasets.schema import Schema
 
 WHERE_OPS = ('not', 'between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'exists')
 UNIT_OPS = ('none', '-', '+', "*", '/')
@@ -11,6 +12,7 @@ AGG_OPS = ('none', 'max', 'min', 'count', 'sum', 'avg')
 class DataLoader():
     def __init__(self, batch_size):
         self.schemas = {}
+        self.dbs = {}
         self.train_data = None
         self.dev_data = None
         self.test_data = None
@@ -34,8 +36,10 @@ class DataLoader():
 
         # Load Schema
         for table in table_data:
-            self.schemas[table['db_id']] = table
-            del self.schemas[table['db_id']]['db_id']
+            schema = Schema()
+            schema.import_from_spider(table)
+            self.schemas[schema.db_id] = schema
+            self.dbs[schema.db_id] = table
 
     def _get(self, data):
         data_len = len(data)
@@ -53,7 +57,8 @@ class DataLoader():
 
         for item in data:
             sql_tmp = {}
-            db = self.schemas[item['db_id']]
+            schema = self.schemas[item['db_id']]
+            db = self.dbs[item['db_id']]
 
             # Info
             sql_tmp['question'] = item['question']
@@ -66,9 +71,10 @@ class DataLoader():
             sql_tmp['from'] = item['sql']['from']
             sql_tmp['column'] = db['column_names']
 
+            sql_tmp['schema'] = schema
             # DB info
             sql_tmp['db_id'] = item['db_id']
-            sql_tmp['db'] = self.schemas[item['db_id']]
+            sql_tmp['db'] = db
             sql_tmp['tbl'] = db['table_names']
             sql_tmp['foreign_keys'] = db['foreign_keys']
             sql_tmp['primary_keys'] = db['primary_keys']
@@ -153,7 +159,7 @@ class DataLoader():
             for i in range(1):
                 for table_num in table_list:
                     if type(table_num) is dict:
-                        #print("WRONG2")  # nested query is in from clause
+                        #print("WRONG2")  # nested query is in from clause # TODO handle needed
                         break
                     join_table_dict[table_num] = set()
 
@@ -165,9 +171,9 @@ class DataLoader():
                         join_cols_list.append(cond[3][1])
 
                 for col in join_cols_list:
-                    parent_table = db["column_names"][col][0]
+                    parent_table = schema.get_parent_table_id(col)
                     if parent_table not in join_table_dict:
-                        #print("WRONG111111")  # syntaxsqlnet bug - parsing bug
+                        #print("WRONG111111")  # syntaxsqlnet bug - parsing bug # TODO handle needed
                         break
                     else:
                         join_table_dict[parent_table].add(col)

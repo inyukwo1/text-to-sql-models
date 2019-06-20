@@ -7,6 +7,10 @@ from torch.autograd import Variable
 import numpy as np
 from pytorch_pretrained_bert import BertTokenizer
 from commons.embeddings.graph_utils import *
+from datasets.schema import Schema
+from typing import List
+
+
 
 class WordEmbedding(nn.Module):
     def __init__(self, glove_path, N_word, gpu, SQL_TOK, use_bert=False,
@@ -167,39 +171,20 @@ class WordEmbedding(nn.Module):
             tokenized_q = tokenized_q.cuda()
         return tokenized_q, q_len
 
-    def encode_one_q_with_bert(self, one_q, table_name, table_cols, parent_tables, foreign_keys, primary_keys, table_graph):
+    def encode_one_q_with_bert(self, one_q, schema: Schema, table_graph):
         input_q = "[CLS] " + " ".join(one_q)
         one_q_q_len = len(self.bert_tokenizer.tokenize(input_q))
         for table_num in table_graph:
-            input_q += " [SEP] " + table_name[table_num]
+            input_q += " [SEP] " + schema.get_table_name(table_num)
         # table_names = [tables[idx][table_num] for table_num in generated_graph]
         # input_q += " ".join(table_names)
-        col_name_dict = {}
-        for table_num in table_graph:
-            col_name_dict[table_num] = []
-        renamed_table_cols = deepcopy(table_cols)
-        for col_idx, [par_tab, col_name] in enumerate(renamed_table_cols):
-            if par_tab in table_graph:
-                if col_idx in table_graph[par_tab]:
-                    if col_idx in primary_keys:
-                        for f, p in foreign_keys:
-                            if parent_tables[f] in table_graph and f in table_graph[parent_tables[f]] and p == col_idx:
-                                _, col_name = renamed_table_cols[f]
-                        for f, p in foreign_keys:
-                            if parent_tables[f] in table_graph and f in table_graph[parent_tables[f]] and p == col_idx:
-                                renamed_table_cols[f][1] = col_name
-                    col_name_dict[par_tab].append(col_name)
-                else:
-                    col_name_dict[par_tab].append(col_name)
-        col_name_list = [l for k, l in col_name_dict.items()]
-        col_name_len_list = [len(l) for l in col_name_list]
+
         sep_embeddings = list(range(len(table_graph)))
         for k_idx, k in enumerate(table_graph):
-            for cidx in range(max(col_name_len_list)):
-                l = col_name_dict[k]
-                if cidx < len(l):
-                    input_q += " [SEP] " + l[cidx]
-                    sep_embeddings.append(k_idx)
+            for col_id in schema.get_child_col_ids(k):
+                col_name = schema.get_col_name(col_id)
+                input_q += " [SEP] " + col_name
+                sep_embeddings.append(k_idx)
 
         tokenozed_one_q = self.bert_tokenizer.tokenize(input_q)
         indexed_one_q = self.bert_tokenizer.convert_tokens_to_ids(tokenozed_one_q)
@@ -352,29 +337,25 @@ class WordEmbedding(nn.Module):
 
         return val_inp_var, val_len
 
-    def gen_bert_batch_with_table(self, q, tables, table_cols, foreign_keys, primary_keys, labels):
+    def gen_bert_batch_with_table(self, q, schemas: List[Schema], labels):
         tokenized_q = []
         q_len = []
         q_q_len = []
         anses = []
         sep_embeddings = []
         for idx, one_q in enumerate(q):
-            parent_tables = []
-            for t, c in table_cols[idx]:
-                parent_tables.append(t)
-
             if random.randint(0, 100) < 7:
                 true_graph = 1.
                 generated_graph = str_graph_to_num_graph(labels[idx])
             else:
                 true_graph = 0.
-                generated_graph = generate_random_graph_generate(len(tables[idx]), parent_tables, foreign_keys[idx])
-                if graph_checker(generated_graph, labels[idx], foreign_keys[idx], primary_keys[idx]):
+                generated_graph = generate_random_graph_generate(schemas[idx])
+                if graph_checker(generated_graph, labels[idx], schemas[idx]):
                     true_graph = 1.
             anses.append(true_graph)
 
             one_q_q_len, indexed_one_q, one_sep_embeddings \
-                = self.encode_one_q_with_bert(one_q, tables[idx], table_cols[idx], parent_tables, foreign_keys[idx], primary_keys[idx], generated_graph)
+                = self.encode_one_q_with_bert(one_q, schemas[idx], generated_graph)
             q_q_len.append(one_q_q_len)
             tokenized_q.append(indexed_one_q)
             q_len.append(len(indexed_one_q))
@@ -390,16 +371,13 @@ class WordEmbedding(nn.Module):
             anses = anses.cuda()
         return tokenized_q, q_len, q_q_len, anses, sep_embeddings
 
-    def gen_bert_for_eval(self, one_q, one_tables, one_cols, foreign_keys, primary_keys):
+    def gen_bert_for_eval(self, one_q, schema: Schema):
         tokenized_q = []
-        parent_nums = []
         sep_embeddings = []
-
-        for par_tab, _ in one_cols:
-            parent_nums.append(par_tab)
         table_graph_lists = []
-        for tab in range(len(one_tables)):
-            table_graph_lists += list(generate_four_hop_path_from_seed(tab, parent_nums, foreign_keys))
+
+        for tab in schema.get_all_table_ids():
+            table_graph_lists += list(generate_four_hop_path_from_seed(tab, schema))
 
         simple_graph_lists = []
         for graph in table_graph_lists:
@@ -414,8 +392,7 @@ class WordEmbedding(nn.Module):
         for b in range(B):
 
             one_q_q_len, indexed_one_q, one_sep_embeddings \
-                = self.encode_one_q_with_bert(one_q, one_tables, one_cols, parent_nums, foreign_keys, primary_keys,
-                                                simple_graph_lists[b])
+                = self.encode_one_q_with_bert(one_q, schema, simple_graph_lists[b])
             q_q_len.append(one_q_q_len)
             tokenized_q.append(indexed_one_q)
             q_len.append(len(indexed_one_q))

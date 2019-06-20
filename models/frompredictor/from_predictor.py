@@ -123,7 +123,7 @@ class FromPredictor(nn.Module):
 
     def check_acc(self, scores, gt_data, batch=None, log=False):
         # Parse Input
-        graph, table_graph_list, full_graph_lists, foreign_keys, primary_keys = gt_data
+        graph, table_graph_list, full_graph_lists, schemas = gt_data
 
         graph_correct_list = []
         selected_tbls = []
@@ -133,7 +133,7 @@ class FromPredictor(nn.Module):
             ans_graph = {}
             for t in graph[i]:
                 ans_graph[int(t)] = graph[i][t]
-            graph_correct = graph_checker(selected_graph, ans_graph, foreign_keys[i], primary_keys[i])
+            graph_correct = graph_checker(selected_graph, ans_graph, schemas[i])
             if log and not graph_correct:
                 print("==========================================")
                 print("question: {}".format(batch[i]["question"]))
@@ -164,10 +164,7 @@ class FromPredictor(nn.Module):
         q_seq = []
         history = []
         labels = []
-        tabs = []
-        cols = []
-        f_keys = []
-        p_keys = []
+        schemas = []
 
         # For acc
         q_embs = []
@@ -181,20 +178,16 @@ class FromPredictor(nn.Module):
             for item in batch:
                 history.append(item['history'] if self.use_hs else ['root', 'none'])
                 labels.append(item['join_table_dict'])
-                f_keys.append(item['foreign_keys'])
-                p_keys.append(item['primary_keys'])
                 q_seq.append(item['question_toks'])
-                tabs.append(item['tbl'])    # Original being used
-                cols.append(item['column']) # Original being used
-            q_embs, q_lens, q_q_lens, labels, sep_embedding_lists = self.embed_layer.gen_bert_batch_with_table(q_seq, tabs, cols, f_keys, p_keys, labels)
+                schemas.append(item['schema'])
+            q_embs, q_lens, q_q_lens, labels, sep_embedding_lists = self.embed_layer.gen_bert_batch_with_table(q_seq, schemas, labels)
         else:
             for item in batch:
                 history.append(item['history'] if self.use_hs else ['root', 'none'])
                 labels.append(item['join_table_dict'])
-                f_keys.append(item['foreign_keys'])
-                p_keys.append(item['primary_keys'])
+                schemas.append(item['schema'])
                 q_emb, q_len, q_q_len, table_graph_list, full_graph_list, sep_embeddings = self.embed_layer.gen_bert_for_eval(
-                    item['question_toks'], item['tbl'], item['column'], item['foreign_keys'], item['primary_keys'])
+                    item['question_toks'], item['schema'])
                 q_embs.append(q_emb)
                 q_lens.append(q_len)
                 q_q_lens.append(q_q_len)
@@ -205,6 +198,6 @@ class FromPredictor(nn.Module):
         hs_emb_var, hs_len = self.embed_layer.gen_x_history_batch(history)
 
         input_data = q_embs, q_lens, q_q_lens, hs_emb_var, hs_len, sep_embedding_lists
-        gt_data = labels if self.training else (labels, table_graph_lists, full_graph_lists, f_keys, p_keys)
+        gt_data = labels if self.training else (labels, table_graph_lists, full_graph_lists, schemas)
 
         return input_data, gt_data
