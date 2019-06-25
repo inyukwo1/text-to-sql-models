@@ -12,6 +12,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_name', type=str, default='', help='Dataset Name')
     parser.add_argument('--param', type=str, default='parameters.json', help='json file containing parameters')
     parser.add_argument('--not_save', action='store_true')
+    parser.add_argument('--toy', action='store_true')
     args = parser.parse_args()
 
     # Load Model
@@ -35,6 +36,9 @@ if __name__ == '__main__':
         print('Give correct model name!')
         exit(-1)
 
+    if args.toy == True:
+        H_PARAMS['toy'] = True
+        H_PARAMS['gpu'] = False
     model = Model(H_PARAMS)
 
     # Load DataLoader

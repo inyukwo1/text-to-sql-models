@@ -182,6 +182,11 @@ class WordEmbedding(nn.Module):
 
         for col_id in ontology.cols:
             input_q += " [SEP] " + schema.get_col_name(col_id)
+            for n_gram in range(1, 5):
+                for st in range(0, len(one_q) - n_gram):
+                    w = one_q[st:st + n_gram]
+                    if schema.has_content(col_id, w):
+                        input_q += ' ' + ' '.join(w)
 
         tokenozed_one_q = self.bert_tokenizer.tokenize(input_q)
         indexed_one_q = self.bert_tokenizer.convert_tokens_to_ids(tokenozed_one_q)
@@ -370,7 +375,14 @@ class WordEmbedding(nn.Module):
         for _ in range(20):
             ontology = Ontology()
             ontology.random_from_schema(schema)
-            if not ontology.is_same(label):
+            if ontology.is_same(label):
+                continue
+            same_exist = False
+            for existing_ontology in ontology_lists:
+                if existing_ontology.is_same(ontology):
+                    same_exist = True
+                    break
+            if not same_exist:
                 ontology_lists.append(ontology)
 
         B = len(ontology_lists)

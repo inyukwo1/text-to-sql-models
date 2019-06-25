@@ -1,4 +1,7 @@
 import random
+import sqlite3
+from typing import List
+from nltk import WordNetLemmatizer
 
 
 class Schema:
@@ -11,6 +14,8 @@ class Schema:
         self._col_parent = dict()
         self._foreign_primary_pairs  = []
         self._primary_keys = []
+        self._col_contents = dict()
+        self._lemmatizer = WordNetLemmatizer()
 
     def import_from_spider(self, spider_schema):
         self.db_id = spider_schema["db_id"]
@@ -27,6 +32,26 @@ class Schema:
                 self._col_names_original[col_num] = col_name_original
         self._foreign_primary_pairs = spider_schema["foreign_keys"]
         self._primary_keys = spider_schema["primary_keys"]
+
+    def import_contents(self, db_path):
+        conn = sqlite3.connect(db_path)
+        conn.text_factory = str
+        cursor = conn.cursor()
+        for col_id, col_orig_name in self._col_names_original.items():
+            table_id = self._col_parent[col_id]
+            table_orig_name = self._table_names_original[table_id]
+            cursor.execute("SELECT \"{}\" FROM \"{}\"".format(col_orig_name, table_orig_name))
+            self._col_contents[col_id] = []
+            while True:
+                try:
+                    content = cursor.fetchone()
+                    if not content:
+                        break
+                    content = content[0]
+                    if isinstance(content, str):
+                        self._col_contents[col_id].append(content)
+                except:
+                    continue
 
     def get_parent_table_id(self, col_id):
         return self._col_parent[col_id]
@@ -67,3 +92,22 @@ class Schema:
             if table_id == primary_parent:
                 neighbor_table_ids.add(foreign_parent)
         return list(neighbor_table_ids)
+
+    def has_content(self, col_id, word: List[str]):
+        contents = self._col_contents[col_id]
+        if len(word) == 1:
+            single = True
+        else:
+            single = False
+        word = ' '.join(word)
+        word_2 = ''.join(word)
+        for content in contents:
+            content = str(content)
+            if content.lower() == word.lower():
+                return True
+            if content.lower() == word_2.lower():
+                return True
+            if single:
+                if self._lemmatizer.lemmatize(content) == self._lemmatizer.lemmatize(word):
+                    return True
+        return False

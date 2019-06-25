@@ -34,7 +34,8 @@ def eval(model, dataloader, log=False):
     model.eval()
     dataloader.shuffle()
     batches = dataloader.get_eval()
-    for batch in batches:
+    for idx, batch in enumerate(batches):
+
         # preprocess
         input_data, gt_data = model.preprocess(batch)
 

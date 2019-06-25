@@ -2,6 +2,7 @@
   "N_h": 300,
   "N_depth": 2,
   "gpu": true,
+  "toy": false,
   "use_hs": true,
   "N_WORD": 300,
   "B_WORD": 42,

@@ -39,6 +39,8 @@ class DataLoader():
         for table in table_data:
             schema = Schema()
             schema.import_from_spider(table)
+            database_path = os.path.join(self._data_path, 'database', schema.db_id, schema.db_id + ".sqlite")
+            schema.import_contents(database_path)
             self.schemas[schema.db_id] = schema
             self.dbs[schema.db_id] = table
 

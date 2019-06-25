@@ -19,6 +19,7 @@ class FromPredictor(nn.Module):
 
         self.N_h = H_PARAM['N_h']
         self.N_depth = H_PARAM['N_depth']
+        self.toy = H_PARAM['toy']
         self.gpu = H_PARAM['gpu']
         self.use_hs = H_PARAM['use_hs']
         self.B_word = H_PARAM['B_WORD']
@@ -32,7 +33,7 @@ class FromPredictor(nn.Module):
         self.SQL_TOK = ['<UNK>', '<END>', 'WHERE', 'AND', 'EQL', 'GT', 'LT', '<BEG>']
 
         self.embed_layer = WordEmbedding(H_PARAM['glove_path'].format(self.B_word, self.N_word),
-                                         self.N_word, gpu=self.gpu, SQL_TOK=self.SQL_TOK, use_bert=True)
+                                         self.N_word, gpu=self.gpu, SQL_TOK=self.SQL_TOK, use_bert=True, use_small=H_PARAM["toy"])
 
         self.hs_lstm = nn.LSTM(input_size=self.N_word, hidden_size=self.N_h//2,
                 num_layers=self.N_depth, batch_first=True,
@@ -46,6 +47,8 @@ class FromPredictor(nn.Module):
             self.cuda()
 
     def load_model(self):
+        if self.toy:
+            return
         print('Loading from model...')
         dev_type = 'cuda' if self.gpu else 'cpu'
         device = torch.device(dev_type)
