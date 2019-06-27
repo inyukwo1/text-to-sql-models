@@ -24,6 +24,5 @@
   "bert_lr": 1e-5,
   "onefrom": true,
   "encoded_num": 1024,
-  "load_option": ["generated_data_augment", "full", "dev", "root_tem"],
-  "table_type": "std"
+  "load_option": ["generated_data_augment", "full", "dev", "root_tem"]
 }

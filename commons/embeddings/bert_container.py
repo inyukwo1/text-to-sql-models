@@ -64,33 +64,33 @@ class BertContainer:
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
         embedding_output = self.main_bert.embeddings(inp, emb_mask)
 
-        expand_embeddings = []
-        for one_sep_embeddings in sep_embeddings:
-            embed_tensors = []
-            for loc_idx in range(max_seq_len):
-                if loc_idx >= len(one_sep_embeddings):
-                    embed_tensor = torch.zeros_like(self.bert_param.pos0)
-                elif one_sep_embeddings[loc_idx] == -1:
-                    embed_tensor = torch.zeros_like(self.bert_param.pos0)
-                elif one_sep_embeddings[loc_idx] == 0:
-                    embed_tensor = self.bert_param.pos0
-                elif one_sep_embeddings[loc_idx] == 1:
-                    embed_tensor = self.bert_param.pos1
-                elif one_sep_embeddings[loc_idx] == 2:
-                    embed_tensor = self.bert_param.pos2
-                elif one_sep_embeddings[loc_idx] == 3:
-                    embed_tensor = self.bert_param.pos3
-                elif one_sep_embeddings[loc_idx] == 4:
-                    embed_tensor = self.bert_param.pos4
-                elif one_sep_embeddings[loc_idx] == 5:
-                    embed_tensor = self.bert_param.pos5
-                embed_tensors.append(embed_tensor)
-            embed_tensors = torch.stack(embed_tensors)
-            expand_embeddings.append(embed_tensors)
-        expand_embeddings = torch.stack(expand_embeddings)
-        if torch.cuda.is_available():
-            expand_embeddings = expand_embeddings.cuda()
-        embedding_output = embedding_output + expand_embeddings
+        # expand_embeddings = []
+        # for one_sep_embeddings in sep_embeddings:
+        #     embed_tensors = []
+        #     for loc_idx in range(max_seq_len):
+        #         if loc_idx >= len(one_sep_embeddings):
+        #             embed_tensor = torch.zeros_like(self.bert_param.pos0)
+        #         elif one_sep_embeddings[loc_idx] == -1:
+        #             embed_tensor = torch.zeros_like(self.bert_param.pos0)
+        #         elif one_sep_embeddings[loc_idx] == 0:
+        #             embed_tensor = self.bert_param.pos0
+        #         elif one_sep_embeddings[loc_idx] == 1:
+        #             embed_tensor = self.bert_param.pos1
+        #         elif one_sep_embeddings[loc_idx] == 2:
+        #             embed_tensor = self.bert_param.pos2
+        #         elif one_sep_embeddings[loc_idx] == 3:
+        #             embed_tensor = self.bert_param.pos3
+        #         elif one_sep_embeddings[loc_idx] == 4:
+        #             embed_tensor = self.bert_param.pos4
+        #         elif one_sep_embeddings[loc_idx] == 5:
+        #             embed_tensor = self.bert_param.pos5
+        #         embed_tensors.append(embed_tensor)
+        #     embed_tensors = torch.stack(embed_tensors)
+        #     expand_embeddings.append(embed_tensors)
+        # expand_embeddings = torch.stack(expand_embeddings)
+        # if torch.cuda.is_available():
+        #     expand_embeddings = expand_embeddings.cuda()
+        # embedding_output = embedding_output + expand_embeddings
 
         x = embedding_output
         for layer_num, layer_module in enumerate(self.main_bert.encoder.layer):

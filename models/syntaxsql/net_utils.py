@@ -9,6 +9,27 @@ def to_batch_seq(batch):
     return q_seq, history, label
 
 
+def to_batch_tables_generator(batch):
+    # col_lens = []
+    col_seq = []
+    tname_seqs = []
+    for item in batch:
+        ts = item["ts"]
+        tname_toks = [x.split(" ") for x in ts[0]]
+        col_type = ts[2]
+        cols = [x.split(" ") for xid, x in ts[1]]
+        tab_seq = [xid for xid, x in ts[1]]
+        cols_add = []
+        for tid, col, ct in zip(tab_seq, cols, col_type):
+            col_one = [ct]
+            col_one.extend(col)
+            cols_add.append(col_one)
+        col_seq.append(cols_add)
+        tname_seqs.append(tname_toks)
+
+    return col_seq, tname_seqs
+
+
 # CHANGED
 def to_batch_tables(batch, table_type):
     # col_lens = []

@@ -3,10 +3,13 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import List
+from models.frompredictor.ontology import Ontology
 from commons.utils import run_lstm
 from commons.embeddings.graph_utils import *
 from commons.embeddings.bert_container import BertContainer
 from commons.embeddings.word_embedding import WordEmbedding
+
 
 class FromPredictor(nn.Module):
     def __init__(self, H_PARAM):
@@ -123,39 +126,34 @@ class FromPredictor(nn.Module):
 
     def check_acc(self, scores, gt_data, batch=None, log=False):
         # Parse Input
-        graph, table_graph_list, full_graph_lists, schemas = gt_data
+        anses, ontology_lists, schemas = gt_data
 
         graph_correct_list = []
         selected_tbls = []
-        full_graphs = []
         for i in range(len(scores)):
-            selected_graph = table_graph_list[i][np.argmax(scores[i])]
-            ans_graph = {}
-            for t in graph[i]:
-                ans_graph[int(t)] = graph[i][t]
-            graph_correct = graph_checker(selected_graph, ans_graph, schemas[i])
-            if log and not graph_correct:
+            selected_ontology = ontology_lists[i][np.argmax(scores[i])]
+            ans = anses[i]
+            ontology_correct = selected_ontology.is_same(ans)
+            if log and not ontology_correct:
                 print("==========================================")
                 print("question: {}".format(batch[i]["question"]))
                 print("sql: {}".format(batch[i]["query"]))
                 for table_num, table_name in enumerate(batch[i]["tbl"]):
-                    print("Table: {}".format(table_name))
+                    print("Table {}: {}".format(table_num, table_name))
                     for col_num, (par_num, col_name) in enumerate(batch[i]["column"]):
                         if par_num == table_num:
                             print("  {}: {}".format(col_num, col_name))
-                print("ans: {}".format(ans_graph))
-                print("selected: {}".format(selected_graph))
+                print("ans: {}".format(ans))
+                print("selected: {}".format(selected_ontology))
                 print("cands: ")
                 for cand_idx in range(len(scores[i])):
-                    print(table_graph_list[i][cand_idx])
+                    print(ontology_lists[i][cand_idx])
                     print("score: {}".format(scores[i][cand_idx]))
                     print("%%%")
-                print(graph_correct)
-            graph_correct_list.append(graph_correct)
-            selected_tbls.append(selected_graph.keys())
-            full_graphs.append(full_graph_lists[i][np.argmax(scores[i])])
+            graph_correct_list.append(ontology_correct)
+            selected_tbls.append(selected_ontology.tables)
 
-        return graph_correct_list, selected_tbls, full_graphs
+        return graph_correct_list, selected_tbls
 
     def evaluate(self, score, gt_data, batch=None, log=False):
         return self.check_acc(score, gt_data, batch, log)[0].count(True)
@@ -170,34 +168,32 @@ class FromPredictor(nn.Module):
         q_embs = []
         q_lens = []
         q_q_lens = []
-        table_graph_lists = []
-        full_graph_lists = []
+        ontology_lists = []
         sep_embedding_lists = []
 
         if self.training:
             for item in batch:
                 history.append(item['history'] if self.use_hs else ['root', 'none'])
-                labels.append(item['join_table_dict'])
+                labels.append(item['ontology'])
                 q_seq.append(item['question_toks'])
                 schemas.append(item['schema'])
             q_embs, q_lens, q_q_lens, labels, sep_embedding_lists = self.embed_layer.gen_bert_batch_with_table(q_seq, schemas, labels)
         else:
             for item in batch:
                 history.append(item['history'] if self.use_hs else ['root', 'none'])
-                labels.append(item['join_table_dict'])
+                labels.append(item['ontology'])
                 schemas.append(item['schema'])
-                q_emb, q_len, q_q_len, table_graph_list, full_graph_list, sep_embeddings = self.embed_layer.gen_bert_for_eval(
-                    item['question_toks'], item['schema'])
+                q_emb, q_len, q_q_len, ontology_list, sep_embeddings = self.embed_layer.gen_bert_for_eval(
+                    item['question_toks'], item['schema'], item['ontology'])
                 q_embs.append(q_emb)
                 q_lens.append(q_len)
                 q_q_lens.append(q_q_len)
-                table_graph_lists.append(table_graph_list)
-                full_graph_lists.append(full_graph_list)
+                ontology_lists.append(ontology_list)
                 sep_embedding_lists.append(sep_embeddings)
 
         hs_emb_var, hs_len = self.embed_layer.gen_x_history_batch(history)
 
         input_data = q_embs, q_lens, q_q_lens, hs_emb_var, hs_len, sep_embedding_lists
-        gt_data = labels if self.training else (labels, table_graph_lists, full_graph_lists, schemas)
+        gt_data = labels if self.training else (labels, ontology_lists, schemas)
 
         return input_data, gt_data
