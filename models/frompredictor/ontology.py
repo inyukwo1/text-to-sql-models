@@ -1,4 +1,7 @@
 from random import choice, randint, sample
+from typing import List
+from datasets.schema import Schema
+from nltk import WordNetLemmatizer
 
 
 class Ontology:
@@ -89,7 +92,13 @@ class Ontology:
             pivot_table = choice(list(self.tables))
             neighbor_tables = schema.get_neighbor_table_ids(pivot_table)
             if neighbor_tables:
-                self.tables.add(choice(neighbor_tables))
+                selected_neighbor_table = choice(neighbor_tables)
+                foreign_primary_keys = schema.get_foreign_primary_keys_with_two_tables(pivot_table,
+                                                                                       selected_neighbor_table)
+                selected_foreign, selected_primary = choice(foreign_primary_keys)
+                self.tables.add(selected_neighbor_table)
+                self.cols.add(selected_foreign)
+                self.cols.add(selected_primary)
 
         max_col_num = min(len(self.tables) * 6, 10)
         col_num = choice(range(0, max_col_num))
@@ -105,6 +114,22 @@ class Ontology:
             return True
         return False
 
+    def make_hint_vector(self, schema: Schema, words: List[str]):
+        hint = [0.] * len(words)
+        words = [schema._lemmatizer.lemmatize(word) for word in words]
+        for table_id in self.tables:
+            table_name = schema.get_table_name(table_id)
+            for n_gram in range(1, 4):
+                for st in range(0, len(words) - n_gram):
+                    if table_name == ' '.join(words[st:st + n_gram]):
+                        hint[st:st + n_gram] = [1.] * n_gram
 
+        for col_id in self.cols:
+            col_name = schema.get_col_name(col_id)
+            for n_gram in range(1, 4):
+                for st in range(0, len(words) - n_gram):
+                    if col_name == ' '.join(words[st:st + n_gram]):
+                        hint[st:st + n_gram] = [1.] * n_gram
+        return hint
 
 

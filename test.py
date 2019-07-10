@@ -47,7 +47,7 @@ if __name__ == '__main__':
         exit(-1)
 
     load_option = H_PARAMS['load_option']if 'load_option' in H_PARAMS.keys() else None
-    dataloader = DataLoader(H_PARAMS['batch_size'])
+    dataloader = DataLoader(H_PARAMS['batch_size'], args.toy)
     dataloader.load_data('test', load_option)
 
     if args.model_name == 'syntaxsql':

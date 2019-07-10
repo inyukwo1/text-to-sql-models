@@ -41,7 +41,7 @@ class Schema:
             table_id = self._col_parent[col_id]
             table_orig_name = self._table_names_original[table_id]
             cursor.execute("SELECT \"{}\" FROM \"{}\"".format(col_orig_name, table_orig_name))
-            self._col_contents[col_id] = []
+            self._col_contents[col_id] = set()
             while True:
                 try:
                     content = cursor.fetchone()
@@ -49,9 +49,15 @@ class Schema:
                         break
                     content = content[0]
                     if isinstance(content, str):
-                        self._col_contents[col_id].append(content)
+                        self._col_contents[col_id].add(content)
                 except:
                     continue
+
+    def col_num(self):
+        return len(self._col_names) + 1
+
+    def tab_num(self):
+        return len(self._table_names)
 
     def get_parent_table_id(self, col_id):
         return self._col_parent[col_id]
@@ -68,6 +74,9 @@ class Schema:
 
     def get_all_table_ids(self):
         return list(self._table_names)
+
+    def get_all_col_ids(self):
+        return list(self._col_names)
 
     def get_table_name(self, table_id):
         return self._table_names[table_id]
@@ -93,6 +102,17 @@ class Schema:
                 neighbor_table_ids.add(foreign_parent)
         return list(neighbor_table_ids)
 
+    def get_foreign_primary_keys_with_two_tables(self, table_id_1, table_id_2):
+        foreign_primary_keys = []
+        for f, p in self._foreign_primary_pairs:
+            foreign_parent = self.get_parent_table_id(f)
+            primary_parent = self.get_parent_table_id(p)
+            if table_id_1 == foreign_parent and table_id_2 == primary_parent:
+                foreign_primary_keys.append([f, p])
+            elif table_id_1 == primary_parent and table_id_2 == foreign_parent:
+                foreign_primary_keys.append([p, f])
+        return foreign_primary_keys
+
     def has_content(self, col_id, word: List[str]):
         contents = self._col_contents[col_id]
         if len(word) == 1:
@@ -101,13 +121,26 @@ class Schema:
             single = False
         word = ' '.join(word)
         word_2 = ''.join(word)
-        for content in contents:
-            content = str(content)
-            if content.lower() == word.lower():
+        if word in contents:
+            return True
+        if word_2 in contents:
+            return True
+        if single:
+            if self._lemmatizer.lemmatize(word) in contents:
                 return True
-            if content.lower() == word_2.lower():
-                return True
-            if single:
-                if self._lemmatizer.lemmatize(content) == self._lemmatizer.lemmatize(word):
-                    return True
         return False
+
+    def make_hint_vector(self, words: List[str]):
+        hint = [0.] * len(words)
+        words = [self._lemmatizer.lemmatize(word) for word in words]
+        for table_name in self._table_names.values():
+            for n_gram in range(1, 4):
+                for st in range(0, len(words) - n_gram):
+                    if table_name == ' '.join(words[st:st + n_gram]):
+                        hint[st:st + n_gram] = [1.] * n_gram
+        for col_name in self._col_names.values():
+            for n_gram in range(1, 4):
+                for st in range(0, len(words) - n_gram):
+                    if col_name == ' '.join(words[st:st + n_gram]):
+                        hint[st:st + n_gram] = [1.] * n_gram
+        return hint

@@ -4,6 +4,7 @@ import tqdm
 import random
 from datasets.schema import Schema
 from models.frompredictor.ontology import Ontology
+from commons.process_sql import data_entry_to_sql
 
 WHERE_OPS = ('not', 'between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'exists')
 UNIT_OPS = ('none', '-', '+', "*", '/')
@@ -11,7 +12,8 @@ AGG_OPS = ('none', 'max', 'min', 'count', 'sum', 'avg')
 
 
 class DataLoader():
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, toy=False):
+        self.toy = toy
         self.schemas = {}
         self.dbs = {}
         self.train_data = None
@@ -58,7 +60,7 @@ class DataLoader():
         with open(path, encoding='utf-8') as f:
             data = json.load(f)
 
-        for item in data:
+        for item in tqdm.tqdm(data):
             sql_tmp = {}
             schema = self.schemas[item['db_id']]
             db = self.dbs[item['db_id']]
@@ -69,6 +71,7 @@ class DataLoader():
             sql_tmp['question_tok_concol'] = item['question_tok_concol']
             sql_tmp['question_type_concol_list'] = item['question_type_concol_list']
             sql_tmp['query'] = item['query']
+            item["sql"] = data_entry_to_sql(item)
             sql_tmp['query_toks'] = item['query_toks']
             sql_tmp['sql'] = item['sql']
             sql_tmp['from'] = item['sql']['from']
@@ -187,6 +190,17 @@ class DataLoader():
             ontology = Ontology()
             ontology.import_from_sql(item['sql'])
             sql_tmp['ontology'] = ontology
+            matching_conts = dict()
+            for col_id in schema.get_all_col_ids():
+                matching_conts[col_id] = []
+                if self.toy:
+                    continue
+                for n_gram in range(1, 5):
+                    for st in range(0, len(item['question_toks']) - n_gram):
+                        w = item['question_toks'][st:st + n_gram]
+                        if schema.has_content(col_id, w):
+                            matching_conts[col_id].append(w)
+            sql_tmp["matching_conts"] = matching_conts
 
             sql_list.append(sql_tmp)
         return sql_list

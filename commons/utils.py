@@ -67,9 +67,10 @@ def test(model, dataloader, output_path):
 
 def SIZE_CHECK(tensor, size):
     for idx, dim in enumerate(size):
-        if dim is None:
+        if dim is None or dim == -1:
             size[idx] = list(tensor.size())[idx]
-    assert list(tensor.size()) == size
+    if list(tensor.size()) != size:
+        raise AssertionError("{} not match {}".format(list(tensor.size()), size))
 
 
 def seq_conditional_weighted_num(attention_layer, predicate_tensor, predicate_len, conditional_tensor,
