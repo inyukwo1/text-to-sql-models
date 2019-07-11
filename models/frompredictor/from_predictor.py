@@ -11,6 +11,7 @@ from commons.embeddings.bert_container import BertContainer
 from commons.embeddings.word_embedding import WordEmbedding
 from transformer.encoder import Encoder as TransformerEncoder
 from commons.utils import run_lstm, col_tab_name_encode, seq_conditional_weighted_num, SIZE_CHECK
+from commons.embeddings.bert_container import truncated_normal_
 
 
 class FromPredictor(nn.Module):
@@ -38,10 +39,14 @@ class FromPredictor(nn.Module):
                                          self.N_word, gpu=self.gpu, SQL_TOK=self.SQL_TOK, use_bert=True, use_small=H_PARAM["toy"])
 
         self.entity_encoder = TransformerEncoder(3, 3, self.encoded_num, 128, 128, 0.1, 0.1, 0)
-        self.entity_attention = nn.Linear(self.encoded_num, self.encoded_num + 2)
+        self.exact_type = nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02))
+        self.partial_type = nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02))
+        self.entity_attention = nn.Linear(self.encoded_num, self.encoded_num)
         # self.fin_attention = nn.Linear(self.N_h, self.N_h)
+        self.tot1 = TransformerEncoder(3, 3, self.encoded_num, 128, 128, 0.1, 0.1, 0)
+        self.tot2 = TransformerEncoder(3, 3, self.encoded_num, 128, 128, 0.1, 0.1, 0)
 
-        self.outer1 = nn.Sequential(nn.Linear(self.encoded_num * 2, self.N_h), nn.ReLU())
+        self.outer1 = nn.Sequential(nn.Linear(self.encoded_num, self.N_h), nn.ReLU())
         self.outer2 = nn.Sequential(nn.Linear(self.N_h, 1))
         if self.onefrom:
             self.onefrom_vec = nn.Parameter(torch.zeros(self.N_h))
@@ -89,43 +94,68 @@ class FromPredictor(nn.Module):
         if self.bert:
             self.bert.step()
 
-    def _forward(self, q_emb, q_len, q_q_len, hs_emb_var, hs_len, input_qs, entity_ranges, hint_tensors):
+    def _forward(self, q_emb, q_len, q_q_len, special_tok_locs, input_qs, q_ranges, entity_ranges, entity_types):
         B = len(q_len)
-        q_enc = self.bert.bert(q_emb, q_len, q_q_len, input_qs)
-        weighted_attentions = []
-        for b in range(B):
-            question_vectors = q_enc[b, :q_q_len[b], :]
-            question_vectors = torch.cat((question_vectors, hint_tensors[b]), dim=1)
-            one_batch_entity_ranges = entity_ranges[b]
-            entity_tensors = []
-            max_entity_range_len = max([entity_range[1] - entity_range[0] for entity_range in one_batch_entity_ranges])
-            for entity_range in one_batch_entity_ranges:
-                entity_tensor = q_enc[b, entity_range[0]:entity_range[1], :]
-                if entity_range[1] - entity_range[0] < max_entity_range_len:
-                    padding = torch.zeros(max_entity_range_len - (entity_range[1] - entity_range[0]), self.encoded_num)
-                    entity_tensor = torch.cat((entity_tensor, padding), dim=0)
-                entity_tensors.append(entity_tensor)
-            entity_tensors = torch.stack(entity_tensors)
-            SIZE_CHECK(entity_tensors, [-1, max_entity_range_len, self.encoded_num])
-            encoded_entity = self.entity_encoder(entity_tensors)
-            encoded_entity = encoded_entity[:, 0, :]
-            co_attention = torch.mm(question_vectors, self.entity_attention(encoded_entity).transpose(0, 1)) # 24 1026 302 2
-            co_attention = torch.softmax(co_attention, dim=1)
-            weigted_attention = torch.mm(co_attention, encoded_entity).sum(0)
-            SIZE_CHECK(weigted_attention, [self.encoded_num])
-            weighted_attentions.append(weigted_attention)
-        weighted_attentions = torch.stack(weighted_attentions)
+        q_enc = self.bert.bert(q_emb, q_len, q_q_len, special_tok_locs)
+        xs = []
+        # for b in range(B):
+        #     question_vectors = []
+        #     q_ranges[b].sort()
+        #     cur = 0
+        #     for (st, ed) in q_ranges[b]:
+        #         while cur < st:
+        #             question_vectors.append(q_enc[b, cur, :])
+        #             cur += 1
+        #         question_vectors.append(torch.mean(q_enc[b, st:ed, :], dim=0))
+        #         cur = ed
+        #     while cur < q_q_len[b]:
+        #         question_vectors.append(q_enc[b, cur, :])
+        #         cur += 1
+        #     question_vectors = torch.stack(question_vectors)
+        #
+        #     one_batch_entity_ranges = entity_ranges[b]
+        #     entity_tensors = []
+        #     max_entity_range_len = max([entity_range[1] - entity_range[0] for entity_range in one_batch_entity_ranges])
+        #     for entity_range in one_batch_entity_ranges:
+        #         entity_tensor = q_enc[b, entity_range[0]:entity_range[1], :]
+        #         if entity_range[1] - entity_range[0] < max_entity_range_len:
+        #             padding = torch.zeros(max_entity_range_len - (entity_range[1] - entity_range[0]), self.encoded_num)
+        #             if self.gpu:
+        #                 padding = padding.cuda()
+        #             entity_tensor = torch.cat((entity_tensor, padding), dim=0)
+        #         entity_tensors.append(entity_tensor)
+        #     entity_tensors = torch.stack(entity_tensors)
+        #     SIZE_CHECK(entity_tensors, [-1, max_entity_range_len, self.encoded_num])
+        #     encoded_entity = self.entity_encoder(entity_tensors)
+        #     encoded_entity = encoded_entity[:, 0, :]
+        #
+        #     type_encoding = []
+        #     for en_id, type in enumerate(entity_types[b]):
+        #         if type == "EXACT":
+        #             type_encoding.append(self.exact_type)
+        #         elif type == "PARTIAL":
+        #             type_encoding.append(self.partial_type)
+        #         else:
+        #             padding = torch.zeros_like(self.partial_type)
+        #             type_encoding.append(padding)
+        #     type_encoding = torch.stack(type_encoding)
+        #     encoded_entity = encoded_entity + type_encoding
+        #     x = torch.cat((question_vectors, encoded_entity), dim=0).unsqueeze(0)
+        #     x = self.tot1(x)
+        #     x = self.tot2(x)
+        #     x = x.squeeze(0)
+        #     x = x[0, :]
+        #
+        #     xs.append(x)
+        # xs = torch.stack(xs)
 
-        q_enc = q_enc[:, 0, :]
-        q_enc = torch.cat((q_enc, weighted_attentions), dim=1)
-
-        x = self.outer1(q_enc)
+        x = self.outer1(q_enc[:,0,:])
         x = self.outer2(x).squeeze(1)
         return x
 
     def forward(self, input_data, single_forward=False):
         # Parse Input
-        q_embs, q_lens, q_q_lens, hs_emb_var, hs_len, input_qs_lists, entity_ranges, hint_tensors = input_data
+        q_embs, q_lens, q_q_lens, special_tok_locs, input_qs_lists, q_ranges, entity_ranges, entity_types = input_data
 
         max_size = 4
 
@@ -138,8 +168,8 @@ class FromPredictor(nn.Module):
                 one_batch_score = []
                 for j in range(0, length, max_size):
                     score = self._forward(q_embs[i][j:min(length,j+max_size)], q_lens[i][j:min(length,j+max_size)],
-                        q_q_lens[i][j:min(length,j+max_size)], hs_emb_var, hs_len, input_qs_lists[i][j:min(length,j+max_size)],
-                        entity_ranges[i][j:min(length,j+max_size)], hint_tensors[i][j:min(length,j+max_size)])
+                        q_q_lens[i][j:min(length,j+max_size)], special_tok_locs[i][j:min(length,j+max_size)], input_qs_lists[i][j:min(length,j+max_size)],
+                                          q_ranges[i][j:min(length, j + max_size)], entity_ranges[i][j:min(length,j+max_size)], entity_types[i][j:min(length,j+max_size)])
                     one_batch_score.append(score.data.cpu().numpy())
                 one_batch_score = np.concatenate(one_batch_score)
                 scores.append(one_batch_score)
@@ -198,9 +228,11 @@ class FromPredictor(nn.Module):
         q_q_lens = []
         ontology_lists = []
         input_qs_lists = []
+        special_tok_locs = []
         matching_conts = []
+        q_ranges_list = []
         entity_ranges_list = []
-        hint_tensors_list = []
+        entity_types_list = []
 
         if self.training:
             for item in batch:
@@ -209,25 +241,25 @@ class FromPredictor(nn.Module):
                 q_seq.append(item['question_toks'])
                 schemas.append(item['schema'])
                 matching_conts.append(item['matching_conts'])
-            q_embs, q_lens, q_q_lens, labels, input_qs_lists, entity_ranges_list, hint_tensors_list = self.embed_layer.gen_bert_batch_with_table(q_seq, schemas, labels, matching_conts)
+            q_embs, q_lens, q_q_lens, labels, special_tok_locs, input_qs_lists, q_ranges_list, entity_ranges_list, entity_types_list = self.embed_layer.gen_bert_batch_with_table(q_seq, schemas, labels, matching_conts)
         else:
             for item in batch:
                 history.append(item['history'] if self.use_hs else ['root', 'none'])
                 labels.append(item['ontology'])
                 schemas.append(item['schema'])
-                q_emb, q_len, q_q_len, ontology_list, input_qs, entity_ranges, hint_tensors = self.embed_layer.gen_bert_for_eval(
+                q_emb, q_len, q_q_len, ontology_list, one_special_tok_locs, input_qs, q_ranges, entity_ranges, entity_types = self.embed_layer.gen_bert_for_eval(
                     item['question_toks'], item['schema'], item['ontology'], item['matching_conts'])
                 q_embs.append(q_emb)
                 q_lens.append(q_len)
                 q_q_lens.append(q_q_len)
                 ontology_lists.append(ontology_list)
+                special_tok_locs.append(one_special_tok_locs)
                 input_qs_lists.append(input_qs)
+                q_ranges_list.append(q_ranges)
                 entity_ranges_list.append(entity_ranges)
-                hint_tensors_list.append(hint_tensors)
+                entity_types_list.append(entity_types)
 
-        hs_emb_var, hs_len = self.embed_layer.gen_x_history_batch(history)
-
-        input_data = q_embs, q_lens, q_q_lens, hs_emb_var, hs_len, input_qs_lists, entity_ranges_list, hint_tensors_list
+        input_data = q_embs, q_lens, q_q_lens, special_tok_locs, input_qs_lists, q_ranges_list, entity_ranges_list, entity_types_list
         gt_data = labels if self.training else (labels, ontology_lists, schemas, input_qs_lists)
 
         return input_data, gt_data

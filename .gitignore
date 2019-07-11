@@ -2,3 +2,4 @@
 datasets/spider/data/
 glove/
 venv/
+*.pyc

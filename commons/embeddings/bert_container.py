@@ -5,6 +5,16 @@ import torch.nn as nn
 import numpy as np
 
 
+def truncated_normal_(tensor, mean=0., std=1.):
+    size = tensor.shape
+    tmp = tensor.new_empty(size + (4,)).normal_()
+    valid = (tmp < 2) & (tmp > -2)
+    ind = valid.max(-1, keepdim=True)[1]
+    tensor.data.copy_(tmp.gather(-1, ind).squeeze(-1))
+    tensor.data.mul_(std).add_(mean)
+    return tensor
+
+
 def embedding_tensor_listify(tensor):
     D1, D2, D3 = list(tensor.size())
     list_tensor = []
@@ -26,12 +36,9 @@ def list_tensor_tensify(list_tensor):
 class BertParameterWrapper(nn.Module):
     def __init__(self):
         super(BertParameterWrapper, self).__init__()
-        self.pos0 = nn.Parameter(torch.rand(1024) / 100)
-        self.pos1 = nn.Parameter(torch.rand(1024) / 100)
-        self.pos2 = nn.Parameter(torch.rand(1024) / 100)
-        self.pos3 = nn.Parameter(torch.rand(1024) / 100)
-        self.pos4 = nn.Parameter(torch.rand(1024) / 100)
-        self.pos5 = nn.Parameter(torch.rand(1024) / 100)
+        self.embeddings = nn.ParameterList([
+            nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02)) for _ in range(10)
+        ])
 
 
 class BertContainer:
@@ -41,10 +48,11 @@ class BertContainer:
         self.bert_param = BertParameterWrapper()
         if torch.cuda.is_available():
             self.main_bert.cuda()
+            self.bert_param.cuda()
         self.other_optimizer = torch.optim.Adam(self.bert_param.parameters(), lr=lr)
         self.main_bert_optimizer = torch.optim.Adam(self.main_bert.parameters(), lr=lr)
 
-    def bert(self, inp, inp_len, q_inp_len, sep_embeddings):
+    def bert(self, inp, inp_len, q_inp_len, special_tok_locs):
         [batch_num, max_seq_len] = list(inp.size())
         mask = np.zeros((batch_num, max_seq_len), dtype=np.float32)
         for idx, leng in enumerate(inp_len):
@@ -63,34 +71,9 @@ class BertContainer:
         extended_attention_mask = extended_attention_mask.to(dtype=next(self.main_bert.parameters()).dtype)
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
         embedding_output = self.main_bert.embeddings(inp, emb_mask)
-
-        # expand_embeddings = []
-        # for one_sep_embeddings in sep_embeddings:
-        #     embed_tensors = []
-        #     for loc_idx in range(max_seq_len):
-        #         if loc_idx >= len(one_sep_embeddings):
-        #             embed_tensor = torch.zeros_like(self.bert_param.pos0)
-        #         elif one_sep_embeddings[loc_idx] == -1:
-        #             embed_tensor = torch.zeros_like(self.bert_param.pos0)
-        #         elif one_sep_embeddings[loc_idx] == 0:
-        #             embed_tensor = self.bert_param.pos0
-        #         elif one_sep_embeddings[loc_idx] == 1:
-        #             embed_tensor = self.bert_param.pos1
-        #         elif one_sep_embeddings[loc_idx] == 2:
-        #             embed_tensor = self.bert_param.pos2
-        #         elif one_sep_embeddings[loc_idx] == 3:
-        #             embed_tensor = self.bert_param.pos3
-        #         elif one_sep_embeddings[loc_idx] == 4:
-        #             embed_tensor = self.bert_param.pos4
-        #         elif one_sep_embeddings[loc_idx] == 5:
-        #             embed_tensor = self.bert_param.pos5
-        #         embed_tensors.append(embed_tensor)
-        #     embed_tensors = torch.stack(embed_tensors)
-        #     expand_embeddings.append(embed_tensors)
-        # expand_embeddings = torch.stack(expand_embeddings)
-        # if torch.cuda.is_available():
-        #     expand_embeddings = expand_embeddings.cuda()
-        # embedding_output = embedding_output + expand_embeddings
+        for b in range(batch_num):
+            for (loc, id) in special_tok_locs[b]:
+                embedding_output[b, loc] = self.bert_param.embeddings[id]
 
         x = embedding_output
         for layer_num, layer_module in enumerate(self.main_bert.encoder.layer):

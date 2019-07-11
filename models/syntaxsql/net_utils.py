@@ -1,12 +1,10 @@
 def to_batch_seq(batch):
     q_seq = []
     history = []
-    label = []
     for item in batch:
-        q_seq.append(item['question_tokens'])
+        q_seq.append(item['question_toks'])
         history.append(item["history"])
-        label.append(item["label"])
-    return q_seq, history, label
+    return q_seq, history
 
 
 # CHANGED
@@ -14,37 +12,19 @@ def to_batch_tables(batch, table_type):
     # col_lens = []
     col_seq = []
     tname_seqs = []
-    par_tnum_seqs = []
-    foreign_keys = []
     for item in batch:
-        ts = item["ts"]
-        tname_toks = [x.split(" ") for x in ts[0]]
-        col_type = ts[2]
-        cols = [x.split(" ") for xid, x in ts[1]]
-        tab_seq = [xid for xid, x in ts[1]]
+        tname_toks = [x.split(" ") for x in item["db"]["table_names"]]
+        cols = [x.split(" ") for xid, x in item["db"]["column_names"]]
+        tab_seq = [xid for xid, x in item["db"]["column_names"]]
         cols_add = []
-        for tid, col, ct in zip(tab_seq, cols, col_type):
-            col_one = [ct]
-            if tid == -1:
-                tabn = ["all"]
-            else:
-                if table_type == "no":
-                    tabn = []
-                elif table_type == "struct":
-                    tabn = []
-                else:
-                    tabn = tname_toks[tid]
-            for t in tabn:
-                if t not in col:
-                    col_one.append(t)
+        for tid, col in zip(tab_seq, cols):
+            col_one = []
             col_one.extend(col)
             cols_add.append(col_one)
         col_seq.append(cols_add)
         tname_seqs.append(tname_toks)
-        par_tnum_seqs.append(tab_seq)
-        foreign_keys.append(ts[3])
 
-    return col_seq, tname_seqs, par_tnum_seqs, foreign_keys
+    return col_seq, tname_seqs
 
 
 def to_batch_from_candidates(par_tab_nums, batch):

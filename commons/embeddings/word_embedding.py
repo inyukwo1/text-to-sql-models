@@ -174,22 +174,33 @@ class WordEmbedding(nn.Module):
 
     def encode_one_q_with_bert(self, one_q, schema: Schema, ontology: Ontology, matching_conts):
         entity_ranges = []
-        hint_tensors = []
+        entity_types = []
+        special_tok_locs = [] # (loc, id)
+        bert_q_ranges = []
         input_q = "[CLS] "
-        hint_tensors.append(torch.from_numpy(np.array([0.0, 0.0])).float())
-        schema_matching_scores = schema.make_hint_vector(one_q)
-        ontology_matching_scores = ontology.make_hint_vector(schema, one_q)
-        fin_len = 1
+
+        q_link, tab_link, col_link, q_ranges = schema.make_linking(one_q)
+
+        last_q_len = 0
         for idx, one_word in enumerate(one_q):
             input_q += one_word + " "
-            new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
-            appended = new_fin_len - fin_len
-            vec = [schema_matching_scores[idx], ontology_matching_scores[idx]]
-            for _ in range(appended):
-                hint_tensors.append(torch.from_numpy(np.array(vec)).float())
-
-            fin_len = new_fin_len
-        hint_tensors = torch.stack(hint_tensors)
+            for (st, ed) in q_ranges:
+                if ed == idx:
+                    new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
+                    bert_q_ranges.append((last_q_len, new_fin_len))
+            if idx in q_link:
+                fin_len = len(self.bert_tokenizer.tokenize(input_q))
+                input_q += 'x '
+                last_q_len = fin_len + 1
+                if q_link[idx] == "TABLE":
+                    id = 0
+                elif q_link[idx] == "COLUMN":
+                    id = 1
+                elif q_link[idx] == "VALUE":
+                    id = 2
+                else:
+                    raise AssertionError()
+                special_tok_locs.append((fin_len, id))
 
         one_q_q_len = len(self.bert_tokenizer.tokenize(input_q))
         fin_len = one_q_q_len
@@ -198,6 +209,7 @@ class WordEmbedding(nn.Module):
             new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
             entity_ranges.append([fin_len, new_fin_len])
             fin_len = new_fin_len
+            entity_types.append(tab_link[table_num])
         # table_names = [tables[idx][table_num] for table_num in generated_graph]
         # input_q += " ".join(table_names)
 
@@ -205,17 +217,19 @@ class WordEmbedding(nn.Module):
             input_q += " [SEP] " + schema.get_col_name(col_id)
             new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
             entity_ranges.append([fin_len, new_fin_len])
+            entity_types.append(col_link[col_id])
             fin_len = new_fin_len
             for cont in matching_conts[col_id]:
                 input_q += ' [SEP] ' + ' '.join(cont)
                 new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
                 entity_ranges.append([fin_len, new_fin_len])
+                entity_types.append("EXACT")
                 fin_len = new_fin_len
 
         tokenozed_one_q = self.bert_tokenizer.tokenize(input_q)
         indexed_one_q = self.bert_tokenizer.convert_tokens_to_ids(tokenozed_one_q)
 
-        return one_q_q_len, indexed_one_q, input_q, entity_ranges, hint_tensors
+        return one_q_q_len, indexed_one_q, special_tok_locs, input_q, bert_q_ranges, entity_ranges, entity_types
 
     def gen_col_batch(self, cols):
         ret = []
@@ -361,8 +375,10 @@ class WordEmbedding(nn.Module):
         q_q_len = []
         anses = []
         input_qs = []
+        q_ranges = []
         entity_ranges = []
-        hint_tensors = []
+        entity_types = []
+        special_tok_locs = []
 
         for idx, one_q in enumerate(q):
             if random.randint(0, 100) < 7:
@@ -377,14 +393,16 @@ class WordEmbedding(nn.Module):
                     true_ontology = 1.
             anses.append(true_ontology)
 
-            one_q_q_len, indexed_one_q, input_q, one_entity_ranges, one_hint_tensors \
+            one_q_q_len, indexed_one_q, one_special_tok_locs, input_q, one_q_ranges,  one_entity_ranges, one_entity_types \
                 = self.encode_one_q_with_bert(one_q, schemas[idx], ontology, matching_conts[idx])
             q_q_len.append(one_q_q_len)
             tokenized_q.append(indexed_one_q)
             q_len.append(len(indexed_one_q))
+            special_tok_locs.append(one_special_tok_locs)
             input_qs.append(input_q)
+            q_ranges.append(one_q_ranges)
             entity_ranges.append(one_entity_ranges)
-            hint_tensors.append(one_hint_tensors)
+            entity_types.append(one_entity_types)
 
         max_len = max(q_len)
         for tokenized_one_q in tokenized_q:
@@ -394,13 +412,15 @@ class WordEmbedding(nn.Module):
         if self.gpu:
             tokenized_q = tokenized_q.cuda()
             anses = anses.cuda()
-        return tokenized_q, q_len, q_q_len, anses, input_qs, entity_ranges, hint_tensors
+        return tokenized_q, q_len, q_q_len, anses, special_tok_locs, input_qs, q_ranges, entity_ranges, entity_types
 
     def gen_bert_for_eval(self, one_q, schema: Schema, label: Ontology, matching_conts):
         tokenized_q = []
         input_qs = []
+        special_tok_locs = []
+        q_ranges = []
         entity_ranges = []
-        hint_tensors = []
+        entity_types = []
         ontology_lists = [label]
 
         for _ in range(20):
@@ -423,14 +443,16 @@ class WordEmbedding(nn.Module):
         q_q_len = []
         for b in range(B):
 
-            one_q_q_len, indexed_one_q, input_q, one_entity_ranges, one_hint_tensors \
+            one_q_q_len, indexed_one_q, one_special_tok_locs, input_q, one_q_ranges, one_entity_ranges, one_entity_types \
                 = self.encode_one_q_with_bert(one_q, schema, ontology_lists[b], matching_conts)
             q_q_len.append(one_q_q_len)
             tokenized_q.append(indexed_one_q)
             q_len.append(len(indexed_one_q))
+            special_tok_locs.append(one_special_tok_locs)
             input_qs.append(input_q)
+            q_ranges.append(one_q_ranges)
             entity_ranges.append(one_entity_ranges)
-            hint_tensors.append(one_hint_tensors)
+            entity_types.append(one_entity_types)
 
         max_len = max(q_len)
         for tokenized_one_q in tokenized_q:
@@ -438,7 +460,7 @@ class WordEmbedding(nn.Module):
         tokenized_q = torch.LongTensor(tokenized_q)
         if self.gpu:
             tokenized_q = tokenized_q.cuda()
-        return tokenized_q, q_len, q_q_len, ontology_lists, input_qs, entity_ranges, hint_tensors
+        return tokenized_q, q_len, q_q_len, ontology_lists, special_tok_locs, input_qs, q_ranges, entity_ranges, entity_types
 
     def gen_word_list_embedding(self,words,B):
         val_emb_array = np.zeros((B,len(words), self.N_word), dtype=np.float32)

@@ -2,7 +2,7 @@ import random
 import sqlite3
 from typing import List
 from nltk import WordNetLemmatizer
-
+from copy import deepcopy
 
 class Schema:
     def __init__(self):
@@ -130,17 +130,63 @@ class Schema:
                 return True
         return False
 
-    def make_hint_vector(self, words: List[str]):
-        hint = [0.] * len(words)
+    def make_linking(self, words: List[str]):
+        def lemmatize(word):
+            new_word = []
+            for tok in word.split(' '):
+                new_word.append(self._lemmatizer.lemmatize(tok))
+            return ' '.join(new_word)
+
         words = [self._lemmatizer.lemmatize(word) for word in words]
-        for table_name in self._table_names.values():
-            for n_gram in range(1, 4):
-                for st in range(0, len(words) - n_gram):
-                    if table_name == ' '.join(words[st:st + n_gram]):
-                        hint[st:st + n_gram] = [1.] * n_gram
-        for col_name in self._col_names.values():
-            for n_gram in range(1, 4):
-                for st in range(0, len(words) - n_gram):
-                    if col_name == ' '.join(words[st:st + n_gram]):
-                        hint[st:st + n_gram] = [1.] * n_gram
-        return hint
+        table_names = [(table_id, lemmatize(self._table_names[table_id])) for table_id in self._table_names]
+        col_names = [(col_id, lemmatize(self._col_names[col_id])) for col_id in self._col_names]
+        done_checking = [False] * len(words)
+        linking = dict()
+        col_linking = dict()
+        for col_id in self._col_names:
+            col_linking[col_id] = "NONE"
+        tab_linking = dict()
+        for tab_id in self._table_names:
+            tab_linking[tab_id] = "NONE"
+        q_ranges = set()
+        for n_gram in range(6, 0, -1):
+            for st in range(0, len(words) - n_gram):
+                if True in done_checking[st:st+n_gram]:
+                    continue
+                subword = ' '.join(words[st:st+n_gram])
+                for (tab_id, tab_name) in table_names:
+                    if subword == tab_name:
+                        # table exact matching
+                        linking[st] = "TABLE"
+                        done_checking[st:st + n_gram] = [True] * n_gram
+                        tab_linking[tab_id] = "EXACT"
+                        q_ranges.add((st, st+n_gram))
+                    elif set(subword.split(' ')).issubset(set(tab_name.split(' '))):
+                        # table partial matching
+                        linking[st] = "TABLE"
+                        done_checking[st:st + n_gram] = [True] * n_gram
+                        tab_linking[tab_id] = "PARTIAL"
+                        q_ranges.add((st, st+n_gram))
+
+                for (col_id, col_name) in col_names:
+                    if subword == col_name:
+                        # column exact matching
+                        linking[st] = "COLUMN"
+                        done_checking[st:st + n_gram] = [True] * n_gram
+                        col_linking[col_id] = "EXACT"
+                        q_ranges.add((st, st+n_gram))
+                    elif set(subword.split(' ')).issubset(set(col_name.split(' '))):
+                        # column partial matching
+                        linking[st] = "COLUMN"
+                        done_checking[st:st + n_gram] = [True] * n_gram
+                        col_linking[col_id] = "PARTIAL"
+                        q_ranges.add((st, st+n_gram))
+
+                if subword[0] == "'" and subword[-1] == "'":
+                    linking[st] = "VALUE"
+                    done_checking[st:st + n_gram] = [True] * n_gram
+                    q_ranges.add((st, st+n_gram))
+
+        q_ranges = list(q_ranges)
+
+        return linking, tab_linking, col_linking, q_ranges
