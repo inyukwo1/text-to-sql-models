@@ -31,7 +31,9 @@ if __name__ == '__main__':
     elif args.model_name == 'frompredictor':
         from models.frompredictor.from_predictor import FromPredictor as Model
         H_PARAMS = json.loads(open('./models/frompredictor/{}'.format(args.param)).read())
-
+    elif args.model_name == 'generator':
+        from models.frompredictor.generator import Generator as Model
+        H_PARAMS = json.loads(open('./models/frompredictor/{}'.format(args.param)).read())
     else:
         print('Give correct model name!')
         exit(-1)

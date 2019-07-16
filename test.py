@@ -27,6 +27,9 @@ if __name__ == '__main__':
     elif args.model_name == 'frompredictor':
         from models.frompredictor.from_predictor import FromPredictor as Model
         H_PARAMS = json.loads(open('./models/frompredictor/parameters.json').read())
+    elif args.model_name == 'generator':
+        from models.frompredictor.generator import Generator as Model
+        H_PARAMS = json.loads(open('./models/frompredictor/parameters.json').read())
 
     else:
         print('Give correct model name!')
@@ -55,7 +58,7 @@ if __name__ == '__main__':
         assert dataloader.batch_size == 1
 
     # Testing
-    if args.model_name == 'frompredictor':
+    if args.model_name == 'frompredictor' or args.model_name == 'generator':
         acc = eval(model, dataloader, log=args.log)
         print('Average Acc:{}'.format(acc))
     else:
