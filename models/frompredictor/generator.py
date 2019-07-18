@@ -52,7 +52,15 @@ class Generator(nn.Module):
         # self.fin_attention = nn.Linear(self.N_h, self.N_h)
         self.none_entity = nn.Parameter(truncated_normal_(torch.rand(1, 1024), std=0.02))
 
-        self.outer1 = nn.Sequential(nn.Linear(self.encoded_num * 2, self.N_h), nn.ReLU())
+        self.table_linear = nn.Linear(self.encoded_num, self.encoded_num)
+        self.col_linear = nn.Linear(self.encoded_num, self.encoded_num)
+
+        self.topk_judger = nn.Sequential(nn.Linear(self.encoded_num, self.N_h),
+                                        nn.ReLU(),
+                                        nn.Linear(self.N_h, 6),
+                                         nn.Sigmoid())
+
+        self.outer1 = nn.Sequential(nn.Linear(self.encoded_num, self.N_h), nn.ReLU())
         self.outer2 = nn.Sequential(nn.Linear(self.N_h, 1))
         if self.onefrom:
             self.onefrom_vec = nn.Parameter(torch.zeros(self.N_h))
@@ -69,7 +77,6 @@ class Generator(nn.Module):
         self.load_state_dict(torch.load(os.path.join(self.save_dir, "gen_models.dump"), map_location=device))
         self.bert.main_bert.load_state_dict(torch.load(os.path.join(self.save_dir, "genbert_from_models.dump"), map_location=device))
         self.bert.bert_param.load_state_dict(torch.load(os.path.join(self.save_dir, "genbert_from_params.dump"), map_location=device))
-
 
     def save_model(self, acc):
         print('tot_err:{}'.format(acc))
@@ -100,11 +107,10 @@ class Generator(nn.Module):
         if self.bert:
             self.bert.step()
 
-    def _forward(self, q_embs, q_len, q_q_len, labels, entity_ranges_list, hint_tensors_list, input_qs):
+    def _forward(self, q_embs, q_len, q_q_len, labels, entity_ranges_list, hint_tensors_list, input_qs, schemas: List[Schema]):
         B = len(q_len)
         q_enc = self.bert.bert(q_embs, q_len, q_q_len, [])
         attentions = []
-        co_attentions = []
         _, max_entities = list(labels.size())
         for b in range(B):
             question_vectors = q_enc[b, :q_q_len[b], :]
@@ -125,55 +131,89 @@ class Generator(nn.Module):
             # encoded_entity = self.entity_encoder(entity_tensors)
             # encoded_entity = encoded_entity[:, 0, :]
             encoded_entity = torch.sum(entity_tensors, dim=1)
-            encoded_entity = torch.cat((encoded_entity, self.none_entity), dim=0)
+            cnt = 0
+            col_encoded_entities = []
+            for table_num in schemas[b].get_all_table_ids():
+                table_encoded_entity = self.table_linear(encoded_entity[cnt, :])
+                cnt += 1
+                for col_id in schemas[b].get_child_col_ids(table_num):
+                    col_encoded_entities.append(self.col_linear(encoded_entity[cnt, :]) + table_encoded_entity)
+                    cnt += 1
+            encoded_entity = torch.stack(col_encoded_entities)
+            # encoded_entity = torch.cat((encoded_entity, self.none_entity), dim=0)
             cur_entity_len, _ = list(encoded_entity.size())
-            if max_entities + 1 > cur_entity_len:
-                padding = torch.zeros((max_entities + 1 - cur_entity_len, self.encoded_num))
+            if max_entities > cur_entity_len:
+                padding = torch.zeros((max_entities - cur_entity_len, self.encoded_num))
                 if self.gpu:
                     padding = padding.cuda()
                 encoded_entity = torch.cat((encoded_entity, padding), dim=0)
-            co_attention = torch.mm(question_vectors, self.entity_attention(encoded_entity).transpose(0, 1))
-            co_attention = torch.softmax(co_attention, dim=1)
-            co_attentions.append(co_attention)
-            co_attention = torch.sum(co_attention, dim=0)
-            co_attention = torch.clamp(co_attention, max=1.)
+            # co_attention = torch.mm(question_vectors, self.entity_attention(encoded_entity).transpose(0, 1))
+            # co_attention = torch.softmax(co_attention, dim=1)
+            # co_attentions.append(co_attention)
+            # co_attention = torch.sum(co_attention, dim=0)
+            # co_attention = torch.clamp(co_attention, max=1.)
             # co_attention = torch.tanh(co_attention)
-            co_attention = co_attention[:-1]
-            attentions.append(co_attention)
+            # co_attention = co_attention[:-1]
+            attentions.append(encoded_entity)
         attentions = torch.stack(attentions)
-        return attentions, co_attentions
+        attentions = self.outer2(self.outer1(attentions)).squeeze(2)
+
+        topk = self.topk_judger(q_enc[:, 0, :])
+        return attentions, topk
 
     def forward(self, input_data, single_forward=False):
         scores = self._forward(*input_data)
         return scores
 
     def loss(self, score, labels):
-        score, co_attention = score
-        loss = F.binary_cross_entropy_with_logits(score, labels)
+        score, topk_score = score
+        label, topk_label = labels
+        loss = F.binary_cross_entropy_with_logits(score, label) + F.cross_entropy(topk_score, topk_label)
         return loss
 
     def check_acc(self, scores, gt_data, batch=None, log=False):
         # Parse Input
-        anses, schemas = gt_data
+        (anses, topk_ans), schemas = gt_data
 
-        graph_correct_list = []
-        selected_tbls = []
-        scores, co_attentions = scores
+        correct_list = []
+        topk_correct_list = []
+        topk_total_correct_list = []
+        topk_inside_correct_list = []
+
+        scores, topk_score = scores
         if self.gpu:
             scores = scores.data.cpu().numpy()
             anses = anses.data.cpu().numpy()
+            topk_score = topk_score.data.cpu().numpy()
+            topk_ans = topk_ans.data.cpu().numpy()
         else:
             scores = scores.data.numpy()
             anses = anses.data.numpy()
+            topk_score = topk_score.data.cpu().numpy()
+            topk_ans = topk_ans.data.cpu().numpy()
         for i in range(len(scores)):
             wrong = False
-            co_attention = co_attentions[i]
-            co_attention = co_attention.data.cpu().numpy()
             for b in range(len(scores[i])):
-                if scores[i][b] < 0.5 and anses[i][b] != 0.:
+                if scores[i][b] < 0. and anses[i][b] != 0.:
                     wrong = True
-                elif scores[i][b] > 0.5 and anses[i][b] != 1.:
+                elif scores[i][b] > 0. and anses[i][b] != 1.:
                     wrong = True
+
+            if np.argmax(topk_score[i]) != topk_ans[i]:
+                topk_wrong = True
+            else:
+                topk_wrong = False
+
+            topk_total_wrong = True
+            if not topk_wrong:
+                selected = np.argsort(scores[i])[:topk_ans[i]]
+                for b in range(len(anses[i])):
+                    if anses[i][b] == 1. and b not in selected:
+                        topk_total_wrong = False
+            if wrong and topk_total_wrong:
+                topk_inside_wrong = True
+            else:
+                topk_inside_wrong = False
             if True:
                 print("==========================================")
                 print("question: {}".format(batch[i]["question"]))
@@ -185,26 +225,37 @@ class Generator(nn.Module):
                             print("  {}: {}".format(col_num, col_name))
                 print("ans: {}".format(anses[i]))
                 print("score: {}".format(scores[i]))
-                print("co_attention: {}".format(co_attention))
-            graph_correct_list.append(not wrong)
+                print("topk_ans: {}".format(topk_ans[i]))
+                print("topk_score: {}".format(topk_score[i]))
+                print("topk_prd: {}".format(np.argmax(topk_score[i])))
+                print("wrong: {}, topk_wrong: {}, cor_wrong: {}, inside_wrong: {}".format(wrong, topk_wrong, topk_total_wrong, topk_inside_wrong))
+            correct_list.append(not wrong)
+            topk_correct_list.append(not topk_wrong)
+            topk_total_correct_list.append(not topk_total_wrong)
+            topk_inside_correct_list.append(not topk_inside_wrong)
 
-        return graph_correct_list
+        return correct_list, topk_correct_list, topk_total_correct_list, topk_inside_correct_list
 
     def evaluate(self, score, gt_data, batch=None, log=False):
-        return self.check_acc(score, gt_data, batch, log).count(True)
+        correct_list, topk_correct_list, topk_total_correct_list, topk_inside_correct_list = self.check_acc(score, gt_data, batch, log)
+        return correct_list.count(True), topk_correct_list.count(True), topk_total_correct_list.count(True), topk_inside_correct_list.count(True)
 
     def preprocess(self, batch):
         q_seq = []
-        ontologies = []
+        select_cols = []
         schemas = []
 
         for item in batch:
-            ontologies.append(item['ontology'])
+            select_cols.append(item['select_cols'])
             q_seq.append(item['question_toks'])
             schemas.append(item['schema'])
-        q_embs, q_len, q_q_len, labels, entity_ranges_list, hint_tensors_list, input_qs = self.embed_layer.gen_for_generator(q_seq, schemas, ontologies)
+        q_embs, q_len, q_q_len, labels, topk_labels, entity_ranges_list, hint_tensors_list, input_qs, schemas = self.embed_layer.gen_for_generator(q_seq, schemas, select_cols)
 
-        input_data = q_embs, q_len, q_q_len, labels, entity_ranges_list, hint_tensors_list, input_qs
-        gt_data = labels if self.training else (labels, schemas)
+        input_data = q_embs, q_len, q_q_len, labels, entity_ranges_list, hint_tensors_list, input_qs, schemas
+        comb_labels = labels, topk_labels
+        if self.training:
+            gt_data = comb_labels
+        else:
+            gt_data = (comb_labels, schemas)
 
         return input_data, gt_data

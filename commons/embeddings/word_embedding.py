@@ -355,15 +355,17 @@ class WordEmbedding(nn.Module):
 
         return val_inp_var, val_len
 
-    def gen_for_generator(self, q, schemas: List[Schema], ontologies: List[Ontology]):
+    def gen_for_generator(self, q, schemas: List[Schema], select_cols: List):
         q_embs = []
         q_len = []
         q_q_len = []
         labels = []
+        topk_labels = []
         entity_ranges_list = []
         hint_tensors_list = []
         input_qs = []
-        max_label_num = max([schema.col_num() + schema.tab_num() - 1 for schema in schemas])
+        new_schemas = []
+        max_label_num = max([schema.col_num() + schema.tab_num() for schema in schemas])
         for b, one_q in enumerate(q):
             schema = schemas[b]
             label = []
@@ -393,22 +395,15 @@ class WordEmbedding(nn.Module):
                 new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
                 entity_ranges.append([fin_len, new_fin_len])
                 fin_len = new_fin_len
-                if table_num in ontologies[b].tables:
-                    label.append(1.)
-                else:
-                    label.append(0.)
-            # table_names = [tables[idx][table_num] for table_num in generated_graph]
-            # input_q += " ".join(table_names)
-
-            for col_id in schema.get_all_col_ids():
-                input_q += " [SEP] " + schema.get_col_name(col_id)
-                new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
-                entity_ranges.append([fin_len, new_fin_len])
-                fin_len = new_fin_len
-                if col_id in ontologies[b].cols:
-                    label.append(1.)
-                else:
-                    label.append(0.)
+                for col_id in schema.get_child_col_ids(table_num):
+                    input_q += " [SEP] " + schema.get_col_name(col_id)
+                    new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
+                    entity_ranges.append([fin_len, new_fin_len])
+                    fin_len = new_fin_len
+                    if col_id in select_cols[b]:
+                        label.append(1.)
+                    else:
+                        label.append(0.)
             while len(label) < max_label_num:
                 label.append(0.)
 
@@ -423,11 +418,15 @@ class WordEmbedding(nn.Module):
             q_len.append(len(indexed_one_q))
             q_q_len.append(one_q_q_len)
             labels.append(label)
+            topk_labels.append(len(select_cols[b]))
             entity_ranges_list.append(entity_ranges)
             hint_tensors_list.append(hint_tensors)
+            new_schemas.append(schemas[b])
         labels = torch.stack(labels)
+        topk_labels = torch.tensor(topk_labels)
         if torch.cuda.is_available():
             labels = labels.cuda()
+            topk_labels = topk_labels.cuda()
 
         max_len = max(q_len)
         for tokenized_one_q in q_embs:
@@ -436,7 +435,7 @@ class WordEmbedding(nn.Module):
         if self.gpu:
             q_embs = q_embs.cuda()
 
-        return q_embs, q_len, q_q_len, labels, entity_ranges_list, hint_tensors_list, input_qs
+        return q_embs, q_len, q_q_len, labels, topk_labels, entity_ranges_list, hint_tensors_list, input_qs, new_schemas
 
     def gen_bert_batch_with_table(self, q, schemas: List[Schema], labels: List[Ontology], matching_conts):
         tokenized_q = []

@@ -3,6 +3,7 @@ import json
 import tqdm
 import random
 from datasets.schema import Schema
+from datasets.sql import get_select_cols_from_sql
 from models.frompredictor.ontology import Ontology
 from commons.process_sql import data_entry_to_sql
 
@@ -190,6 +191,7 @@ class DataLoader():
             ontology = Ontology()
             ontology.import_from_sql(item['sql'])
             sql_tmp['ontology'] = ontology
+            sql_tmp['select_cols'] = list(set(get_select_cols_from_sql(item['sql'])))
             matching_conts = dict()
             for col_id in schema.get_all_col_ids():
                 matching_conts[col_id] = []

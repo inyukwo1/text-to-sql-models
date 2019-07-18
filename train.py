@@ -60,7 +60,6 @@ if __name__ == '__main__':
     # Epoch
     for epoch in range(H_PARAMS['epoch']):
         print('Epoch {} @ {} '.format(epoch + 1, datetime.datetime.now()), end='')
-
         # Training
         total_loss = train(model, dataloader)
         print('Loss: {}'.format(total_loss))

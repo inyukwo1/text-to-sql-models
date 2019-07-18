@@ -31,6 +31,9 @@ def train(model, dataloader):
 # Evaluation during training
 def eval(model, dataloader, log=False):
     total_acc = np.zeros(model.acc_num)
+    total_topk_acc = np.zeros(model.acc_num)
+    total_topk_cor_acc = np.zeros(model.acc_num)
+    total_topk_in_acc = np.zeros(model.acc_num)
     model.eval()
     dataloader.shuffle()
     batches = dataloader.get_eval()
@@ -43,10 +46,19 @@ def eval(model, dataloader, log=False):
         score = model.forward(input_data)
 
         # Generate Query
-        acc = model.evaluate(score, gt_data, batch, log=log)
+        acc, topk_acc, topk_cor_acc, topk_in_acc = model.evaluate(score, gt_data, batch, log=log)
 
         total_acc += acc
-    return total_acc / dataloader.get_eval_len()
+
+        total_topk_acc += topk_acc
+        total_topk_cor_acc += topk_cor_acc
+        total_topk_in_acc += topk_in_acc
+
+    print("acc: {}, topk_acc: {}, topk_cor_acc: {}, topk_in_acc: {}".format(total_acc / dataloader.get_eval_len(),
+                                                                            total_topk_acc / dataloader.get_eval_len(),
+                                                                            total_topk_cor_acc / dataloader.get_eval_len(),
+                                                                            total_topk_in_acc / dataloader.get_eval_len()))
+    return total_topk_cor_acc / dataloader.get_eval_len()
 
 
 def test(model, dataloader, output_path):
