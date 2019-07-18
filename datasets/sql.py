@@ -15,6 +15,6 @@ def get_select_cols_from_sql(sql):
         agg_id, val_unit = val_unit
         yield from yield_for_val_unit(val_unit)
 
-    yield from get_select_cols_from_sql(sql["except"])
-    yield from get_select_cols_from_sql(sql["intersect"])
-    yield from get_select_cols_from_sql(sql["union"])
+    # yield from get_select_cols_from_sql(sql["except"])
+    # yield from get_select_cols_from_sql(sql["intersect"])
+    # yield from get_select_cols_from_sql(sql["union"])

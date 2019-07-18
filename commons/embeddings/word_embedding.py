@@ -390,6 +390,14 @@ class WordEmbedding(nn.Module):
 
             one_q_q_len = len(self.bert_tokenizer.tokenize(input_q))
             fin_len = one_q_q_len
+            input_q += " [SEP] *"
+            new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
+            entity_ranges.append([fin_len, new_fin_len])
+            fin_len = new_fin_len
+            if 0 in select_cols[b]:
+                label.append(1.)
+            else:
+                label.append(0.)
             for table_num in schema.get_all_table_ids():
                 input_q += " [SEP] " + schema.get_table_name(table_num)
                 new_fin_len = len(self.bert_tokenizer.tokenize(input_q))

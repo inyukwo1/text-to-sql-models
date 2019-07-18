@@ -2,3 +2,8 @@
 datasets/spider/data/
 glove/
 venv/
+*/__pycache__/
+*/*/__pycache__/
+renv/
+saved_models/
+log*.txt

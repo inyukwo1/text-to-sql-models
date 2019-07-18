@@ -58,7 +58,7 @@ def eval(model, dataloader, log=False):
                                                                             total_topk_acc / dataloader.get_eval_len(),
                                                                             total_topk_cor_acc / dataloader.get_eval_len(),
                                                                             total_topk_in_acc / dataloader.get_eval_len()))
-    return total_topk_cor_acc / dataloader.get_eval_len()
+    return total_topk_in_acc / dataloader.get_eval_len()
 
 
 def test(model, dataloader, output_path):

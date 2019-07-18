@@ -50,7 +50,7 @@ class Generator(nn.Module):
         self.entity_encoder = TransformerEncoder(3, 3, self.encoded_num, 128, 128, 0.1, 0.1, 0)
         self.entity_attention = nn.Linear(self.encoded_num, self.encoded_num + 1)
         # self.fin_attention = nn.Linear(self.N_h, self.N_h)
-        self.none_entity = nn.Parameter(truncated_normal_(torch.rand(1, 1024), std=0.02))
+        self.star_entity = nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02))
 
         self.table_linear = nn.Linear(self.encoded_num, self.encoded_num)
         self.col_linear = nn.Linear(self.encoded_num, self.encoded_num)
@@ -79,7 +79,7 @@ class Generator(nn.Module):
         self.bert.bert_param.load_state_dict(torch.load(os.path.join(self.save_dir, "genbert_from_params.dump"), map_location=device))
 
     def save_model(self, acc):
-        print('tot_err:{}'.format(acc))
+        print('tot_err:{}'.format(acc), flush=True)
 
         if acc > self.acc:
             self.acc = acc
@@ -133,6 +133,8 @@ class Generator(nn.Module):
             encoded_entity = torch.sum(entity_tensors, dim=1)
             cnt = 0
             col_encoded_entities = []
+            col_encoded_entities.append(self.col_linear(encoded_entity[0, :]) + self.star_entity)
+            cnt += 1
             for table_num in schemas[b].get_all_table_ids():
                 table_encoded_entity = self.table_linear(encoded_entity[cnt, :])
                 cnt += 1
