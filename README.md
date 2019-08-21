@@ -69,6 +69,21 @@ You could follow the general evaluation process in [Spider Page](https://github.
 | IRNet+BERT(base) | 61.9                          | **54.7**                      |
 
 
+## Modification
+Changes on sem2sql.py 
+* Support JOIN ON Keyword in FROM clause.
+* Different Alias Name on SQL with IUEN.
+
+## About SemQL
+* Predicts FROM clause using Shortest Path Heuristic (Primary Foreign connection only).
+* Predicts GROUP By Clause using Heuristic. 
+* Doesn't Support SELECT [] FROM [] AS T1 JOIN [] AS T2 ON T1.[] = T2.[]
+
+
+## About IRNet
+* After SemQL is inferred, heuristic is used to modify some part of the SemQL.
+
+
 ## Thanks
 We would like to thank [Tao Yu](https://taoyds.github.io/) and [Bo Pang](https://www.linkedin.com/in/bo-pang/) for running evaluations on our submitted models.
 We are also grateful to the flexible semantic parser [TranX](https://github.com/pcyin/tranX) that inspires our works.
