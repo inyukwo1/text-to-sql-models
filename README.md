@@ -79,7 +79,8 @@ Changes on sem2sql.py
 * Predicts FROM clause using Shortest Path Heuristic (Primary Foreign connection only).
 * Predicts GROUP By Clause using Heuristic. 
 * Doesn't Support SELECT [] FROM [] AS T1 JOIN [] AS T2 ON T1.[] = T2.[]
-
+* No Nested Query in the FROM Clause
+* No Self-join
 
 ## About IRNet
 * After SemQL is inferred, heuristic is used to modify some part of the SemQL.
