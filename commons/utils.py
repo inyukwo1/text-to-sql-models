@@ -13,6 +13,8 @@ def train(model, dataloader):
     for batch in batches:
         # preprocess
         input_data, gt_data = model.preprocess(batch)
+        if input_data is None:
+            continue
 
         # forward
         score = model.forward(input_data)

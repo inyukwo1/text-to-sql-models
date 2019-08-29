@@ -3,7 +3,7 @@ import json
 import tqdm
 import random
 from datasets.schema import Schema
-from datasets.sql import get_select_cols_from_sql
+from datasets.sql import *
 from models.frompredictor.ontology import Ontology
 from commons.process_sql import data_entry_to_sql
 
@@ -191,7 +191,24 @@ class DataLoader():
             ontology = Ontology()
             ontology.import_from_sql(item['sql'])
             sql_tmp['ontology'] = ontology
-            sql_tmp['select_cols'] = list(set(get_select_cols_from_sql(item['sql'])))
+
+            select_cols = list(set(get_select_cols_from_sql(item['sql'])))
+            sql_tmp['select_cols_num'] = len(select_cols)
+            if 0 in select_cols:
+                select_cols.remove(0)
+                col_to_tab = []
+                for t, name in db['column_names']:
+                    col_to_tab.append(t)
+                select_tab = get_select_tab_from_sql(item['sql'], col_to_tab, item['question'], item['query'])
+            else:
+                select_tab = None
+            dup_added_select_cols = append_dup_cols(select_cols, item['sql'])
+            sql_tmp['select_cols'] = dup_added_select_cols
+            sql_tmp['select_tab'] = select_tab
+            group_cols = list(set(get_group_cols_from_sql(item['sql'])))
+            sql_tmp['group_cols_num'] = len(group_cols)
+            dup_added_group_cols = append_dup_cols(group_cols, item['sql'])
+            sql_tmp['group_cols'] = dup_added_group_cols
             matching_conts = dict()
             for col_id in schema.get_all_col_ids():
                 matching_conts[col_id] = []

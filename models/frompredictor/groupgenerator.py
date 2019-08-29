@@ -11,7 +11,6 @@ from commons.embeddings.bert_container import BertContainer
 from commons.embeddings.word_embedding import WordEmbedding
 from transformer.encoder import Encoder as TransformerEncoder
 from commons.utils import run_lstm, col_tab_name_encode, seq_conditional_weighted_num, SIZE_CHECK
-from datasets.sql import *
 
 
 def truncated_normal_(tensor, mean=0., std=1.):
@@ -24,9 +23,9 @@ def truncated_normal_(tensor, mean=0., std=1.):
     return tensor
 
 
-class Generator(nn.Module):
+class GroupGenerator(nn.Module):
     def __init__(self, H_PARAM):
-        super(Generator, self).__init__()
+        super(GroupGenerator, self).__init__()
         self.acc_num = 1
         self.acc = 0
 
@@ -53,6 +52,7 @@ class Generator(nn.Module):
         # self.fin_attention = nn.Linear(self.N_h, self.N_h)
         self.star_entity = nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02))
 
+
         self.foreign_type = nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02))
         self.primary_type = nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02))
         self.text_type = nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02))
@@ -60,13 +60,13 @@ class Generator(nn.Module):
         self.time_type = nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02))
         self.boolean_type = nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02))
         self.others_type = nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02))
-        self.table_type = nn.Parameter(truncated_normal_(torch.rand(1024), std=0.02))
 
-        self.col_tab_linear = nn.Linear(self.encoded_num, self.encoded_num)
+        self.table_linear = nn.Linear(self.encoded_num, self.encoded_num)
+        self.col_linear = nn.Linear(self.encoded_num, self.encoded_num)
 
         self.topk_judger = nn.Sequential(nn.Linear(self.encoded_num, self.N_h),
-                                         nn.ReLU(),
-                                         nn.Linear(self.N_h, 6),
+                                        nn.ReLU(),
+                                        nn.Linear(self.N_h, 5),
                                          nn.Sigmoid())
 
         self.outer1 = nn.Sequential(nn.Linear(self.encoded_num, self.N_h), nn.ReLU())
@@ -83,18 +83,18 @@ class Generator(nn.Module):
         dev_type = 'cuda' if self.gpu else 'cpu'
         device = torch.device(dev_type)
 
-        self.load_state_dict(torch.load(os.path.join(self.save_dir, "gen_models.dump"), map_location=device))
-        self.bert.main_bert.load_state_dict(torch.load(os.path.join(self.save_dir, "genbert_from_models.dump"), map_location=device))
-        self.bert.bert_param.load_state_dict(torch.load(os.path.join(self.save_dir, "genbert_from_params.dump"), map_location=device))
+        self.load_state_dict(torch.load(os.path.join(self.save_dir, "group_gen_models.dump"), map_location=device))
+        self.bert.main_bert.load_state_dict(torch.load(os.path.join(self.save_dir, "group_genbert_from_models.dump"), map_location=device))
+        self.bert.bert_param.load_state_dict(torch.load(os.path.join(self.save_dir, "group_genbert_from_params.dump"), map_location=device))
 
     def save_model(self, acc):
         print('tot_err:{}'.format(acc), flush=True)
 
         if acc > self.acc:
             self.acc = acc
-            torch.save(self.state_dict(), os.path.join(self.save_dir, 'gen_models.dump'))
-            torch.save(self.bert.main_bert.state_dict(), os.path.join(self.save_dir + "genbert_from_models.dump"))
-            torch.save(self.bert.bert_param.state_dict(), os.path.join(self.save_dir + "genbert_from_params.dump"))
+            torch.save(self.state_dict(), os.path.join(self.save_dir, 'group_gen_models.dump'))
+            torch.save(self.bert.main_bert.state_dict(), os.path.join(self.save_dir + "group_genbert_from_models.dump"))
+            torch.save(self.bert.bert_param.state_dict(), os.path.join(self.save_dir + "group_genbert_from_params.dump"))
 
     def train(self, mode=True):
         super().train(mode)
@@ -141,13 +141,14 @@ class Generator(nn.Module):
             # encoded_entity = encoded_entity[:, 0, :]
             encoded_entity = torch.sum(entity_tensors, dim=1)
             cnt = 0
-            col_tab_encoded_entities = []
+            col_encoded_entities = []
+            col_encoded_entities.append(self.col_linear(encoded_entity[0, :]) + self.star_entity)
+            cnt += 1
             for table_num in schemas[b].get_all_table_ids():
-                table_encoded_entity = self.col_tab_linear(encoded_entity[cnt, :]) + self.table_type
-                col_tab_encoded_entities.append(table_encoded_entity)
+                table_encoded_entity = self.table_linear(encoded_entity[cnt, :])
                 cnt += 1
                 for col_id in schemas[b].get_child_col_ids(table_num):
-                    col_encoded_entity = self.col_tab_linear(encoded_entity[cnt, :])
+                    col_encoded_entity = self.col_linear(encoded_entity[cnt, :]) + table_encoded_entity
                     if schemas[b].get_col_type(col_id) == "foreign":
                         col_encoded_entity += self.foreign_type
                     elif schemas[b].get_col_type(col_id) == "primary":
@@ -163,9 +164,9 @@ class Generator(nn.Module):
                     elif schemas[b].get_col_type(col_id) == "others":
                         col_encoded_entity += self.others_type
 
-                    col_tab_encoded_entities.append(col_encoded_entity)
+                    col_encoded_entities.append(col_encoded_entity)
                     cnt += 1
-            encoded_entity = torch.stack(col_tab_encoded_entities)
+            encoded_entity = torch.stack(col_encoded_entities)
             # encoded_entity = torch.cat((encoded_entity, self.none_entity), dim=0)
             cur_entity_len, _ = list(encoded_entity.size())
             if max_entities > cur_entity_len:
@@ -199,7 +200,7 @@ class Generator(nn.Module):
 
     def check_acc(self, scores, gt_data, batch=None, log=False):
         # Parse Input
-        (anses, topk_ans), schemas, sqls = gt_data
+        (anses, topk_ans), schemas = gt_data
 
         correct_list = []
         topk_correct_list = []
@@ -218,6 +219,12 @@ class Generator(nn.Module):
             topk_score = topk_score.data.cpu().numpy()
             topk_ans = topk_ans.data.cpu().numpy()
         for i in range(len(scores)):
+            wrong = False
+            for b in range(len(scores[i])):
+                if scores[i][b] < 0. and anses[i][b] != 0.:
+                    wrong = True
+                elif scores[i][b] > 0. and anses[i][b] != 1.:
+                    wrong = True
 
             if np.argmax(topk_score[i]) != topk_ans[i]:
                 topk_wrong = True
@@ -225,46 +232,17 @@ class Generator(nn.Module):
                 topk_wrong = False
 
             topk_total_wrong = topk_wrong
-            sorted_scores = np.argsort(-scores[i])
-            selected = []
-            for j in range(0, len(sorted_scores)):
-                if len(selected) == topk_ans[i]:
-                    break
-                if not check_dup_cols(selected, sqls[i], sorted_scores[j]):
-                    selected.append(sorted_scores[j])
             if not topk_wrong:
+                selected = np.argsort(-scores[i])[:topk_ans[i]]
                 for b in range(len(anses[i])):
                     if anses[i][b] == 1. and b not in selected:
-                        if not check_dup_cols(selected, sqls[i], b):
-                            topk_total_wrong = True
+                        topk_total_wrong = True
                     elif anses[i][b] == 0. and b in selected:
-                        if not check_dup_cols(selected, sqls[i], b):
-                            topk_total_wrong = True
-            plus1_wrong = topk_wrong
-            topk_inside_selected = []
-            for j in range(0, len(sorted_scores)):
-                if len(topk_inside_selected) == topk_ans[i] + 1:
-                    break
-                if not check_dup_cols(topk_inside_selected, sqls[i], sorted_scores[j]):
-                    topk_inside_selected.append(sorted_scores[j])
-            if not topk_wrong:
-                for b in range(len(anses[i])):
-                    if anses[i][b] == 1. and b not in topk_inside_selected:
-                        if not check_dup_cols(topk_inside_selected, sqls[i], b):
-                            plus1_wrong = True
-            plus2_wrong = topk_wrong
-            wrong_selected = []
-            for j in range(0, len(sorted_scores)):
-                if len(wrong_selected) == topk_ans[i] + 2:
-                    break
-                if not check_dup_cols(wrong_selected, sqls[i], sorted_scores[j]):
-                    wrong_selected.append(sorted_scores[j])
-            if not topk_wrong:
-                for b in range(len(anses[i])):
-                    if anses[i][b] == 1. and b not in wrong_selected:
-                        if not check_dup_cols(wrong_selected, sqls[i], b):
-                            plus2_wrong = True
-
+                        topk_total_wrong = True
+            if wrong and topk_total_wrong:
+                topk_inside_wrong = True
+            else:
+                topk_inside_wrong = False
             if True:
                 print("==========================================")
                 print("question: {}".format(batch[i]["question"]))
@@ -279,12 +257,11 @@ class Generator(nn.Module):
                 print("topk_ans: {}".format(topk_ans[i]))
                 print("topk_score: {}".format(topk_score[i]))
                 print("topk_prd: {}".format(np.argmax(topk_score[i])))
-                print("selected: {}".format(selected))
-                print("wrong: {}, topk_wrong: {}, cor_wrong: {}, inside_wrong: {}".format(plus2_wrong, topk_wrong, topk_total_wrong, plus1_wrong))
-            correct_list.append(not plus2_wrong)
+                print("wrong: {}, topk_wrong: {}, cor_wrong: {}, inside_wrong: {}".format(wrong, topk_wrong, topk_total_wrong, topk_inside_wrong))
+            correct_list.append(not wrong)
             topk_correct_list.append(not topk_wrong)
             topk_total_correct_list.append(not topk_total_wrong)
-            topk_inside_correct_list.append(not plus1_wrong)
+            topk_inside_correct_list.append(not topk_inside_wrong)
 
         return correct_list, topk_correct_list, topk_total_correct_list, topk_inside_correct_list
 
@@ -294,26 +271,25 @@ class Generator(nn.Module):
 
     def preprocess(self, batch):
         q_seq = []
-        select_cols = []
-        select_cols_num = []
-        select_tabs = []
+        group_cols = []
         schemas = []
-        sqls = []
 
         for item in batch:
-            select_cols.append(item['select_cols'])
-            select_tabs.append(item['select_tab'])
-            select_cols_num.append(item['select_cols_num'])
+            if self.training:
+                if not item['group_cols']:
+                    if random.randint(0, 100) < 40 and group_cols:
+                        continue
+            group_cols.append(item['group_cols'])
             q_seq.append(item['question_toks'])
             schemas.append(item['schema'])
-            sqls.append(item['sql'])
-        q_embs, q_len, q_q_len, labels, topk_labels, entity_ranges_list, hint_tensors_list, input_qs, schemas, sqls = self.embed_layer.gen_for_generator(q_seq, schemas, select_tabs, select_cols, select_cols_num, sqls)
-
+        q_embs, q_len, q_q_len, labels, topk_labels, entity_ranges_list, hint_tensors_list, input_qs, schemas = self.embed_layer.gen_for_generator(q_seq, schemas, group_cols)
+        if q_embs is None:
+            return None, None
         input_data = q_embs, q_len, q_q_len, labels, entity_ranges_list, hint_tensors_list, input_qs, schemas
         comb_labels = labels, topk_labels
         if self.training:
             gt_data = comb_labels
         else:
-            gt_data = (comb_labels, schemas, sqls)
+            gt_data = (comb_labels, schemas)
 
         return input_data, gt_data

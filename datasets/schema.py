@@ -2,19 +2,22 @@ import random
 import sqlite3
 from typing import List
 from nltk import WordNetLemmatizer
+from copy import deepcopy
+from collections import OrderedDict
 
 
 class Schema:
     def __init__(self):
         self.db_id = ""
-        self._table_names = dict()
-        self._table_names_original = dict()
-        self._col_names = dict()
-        self._col_names_original = dict()
-        self._col_parent = dict()
+        self._table_names = OrderedDict()
+        self._table_names_original = OrderedDict()
+        self._col_names = OrderedDict()
+        self._col_names_original = OrderedDict()
+        self._col_parent = OrderedDict()
         self._foreign_primary_pairs  = []
         self._primary_keys = []
-        self._col_contents = dict()
+        self._col_types = []
+        self._col_contents = OrderedDict()
         self._lemmatizer = WordNetLemmatizer()
 
     def import_from_spider(self, spider_schema):
@@ -32,6 +35,7 @@ class Schema:
                 self._col_names_original[col_num] = col_name_original
         self._foreign_primary_pairs = spider_schema["foreign_keys"]
         self._primary_keys = spider_schema["primary_keys"]
+        self._col_types = deepcopy(spider_schema["column_types"])
 
     def import_contents(self, db_path):
         conn = sqlite3.connect(db_path)
@@ -58,6 +62,15 @@ class Schema:
 
     def tab_num(self):
         return len(self._table_names)
+
+    def get_col_type(self, col_id):
+        # foreign, primary, text, time, boolen, number, others
+        for f, p in self._foreign_primary_pairs:
+            if col_id == p:
+                return "primary"
+            if col_id == f:
+                return "foreign"
+        return self._col_types[col_id]
 
     def get_parent_table_id(self, col_id):
         return self._col_parent[col_id]

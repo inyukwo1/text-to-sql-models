@@ -23,4 +23,4 @@ pytorch-pretrained-bert
 tqdm
 sqlparse
 dgl
-git+https://github.com/phohenecker/pytorch-transformer
+pytorch-transformers
