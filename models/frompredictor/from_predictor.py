@@ -19,7 +19,7 @@ class FromPredictor(nn.Module):
         self.acc_num = 1
         self.acc = 0
 
-        self.N_h = H_PARAM['N_h']
+        self.N_h = 300 #H_PARAM['N_h']
         self.N_depth = H_PARAM['N_depth']
         self.toy = H_PARAM['toy']
         self.gpu = H_PARAM['gpu']
@@ -38,10 +38,10 @@ class FromPredictor(nn.Module):
                                          self.N_word, gpu=self.gpu, SQL_TOK=self.SQL_TOK, use_bert=True, use_small=H_PARAM["toy"])
 
         self.entity_encoder = TransformerEncoder(3, 3, self.encoded_num, 128, 128, 0.1, 0.1, 0)
-        self.entity_attention = nn.Linear(self.encoded_num, self.encoded_num + 2)
+        self.entity_attention = nn.Linear(self.encoded_num, self.encoded_num)
         # self.fin_attention = nn.Linear(self.N_h, self.N_h)
 
-        self.outer1 = nn.Sequential(nn.Linear(self.encoded_num * 2, self.N_h), nn.ReLU())
+        self.outer1 = nn.Sequential(nn.Linear(self.encoded_num, self.N_h), nn.ReLU())
         self.outer2 = nn.Sequential(nn.Linear(self.N_h, 1))
         if self.onefrom:
             self.onefrom_vec = nn.Parameter(torch.zeros(self.N_h))

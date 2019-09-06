@@ -9,7 +9,7 @@ if __name__ == '__main__':
     # Parse Arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default='', help='Model Name')
-    parser.add_argument('--data_name', type=str, default='', help='Dataset Name')
+    parser.add_argument('--data_name', type=str, default='spider', help='Dataset Name')
     parser.add_argument('--param', type=str, default='parameters.json', help='json file containing parameters')
     parser.add_argument('--not_save', action='store_true')
     parser.add_argument('--toy', action='store_true')
@@ -45,6 +45,7 @@ if __name__ == '__main__':
         H_PARAMS['toy'] = True
         H_PARAMS['gpu'] = False
     model = Model(H_PARAMS)
+    model.load_model()
 
     # Load DataLoader
     if args.data_name == 'spider':

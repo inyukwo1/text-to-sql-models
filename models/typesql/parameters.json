@@ -10,7 +10,7 @@
   "N_depth": 2,
   "max_col_num": 45,
   "max_tok_num": 200,
-  "bert": true,
+  "bert": false,
   "B_WORD": 42,
   "N_WORD": 300,
   "N_h": 120,
@@ -23,5 +23,6 @@
   "use_hs": true,
   "onefrom": true,
   "threshold": 0.5,
-  "encoded_num": 1024
+  "encoded_num": 1024,
+  "toy": false
 }

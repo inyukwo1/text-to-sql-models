@@ -190,13 +190,13 @@ class TypeSQL(nn.Module):
 
         # Load models
         print("Loading sel model...")
-        self.sel_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "sel_models.dump"), map_location=device))
+        self.sel_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "sel_randn_models.dump"), map_location=device))
         print("Loading cond model...")
-        self.cond_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "cond_models.dump"), map_location=device))
+        self.cond_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "cond_randn_models.dump"), map_location=device))
         print("Loading group model...")
-        self.group_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "group_models.dump"), map_location=device))
+        self.group_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "group_randn_models.dump"), map_location=device))
         print("Loading order model...")
-        self.order_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "order_models.dump"), map_location=device))
+        self.order_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "order_randn_models.dump"), map_location=device))
         if self.use_from:
             print("Loading from model...")
             self.from_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "from_models.dump"), map_location=device))
@@ -214,19 +214,19 @@ class TypeSQL(nn.Module):
         if acc[1] > self.acc[0]:
             self.acc[0] = acc[1]
             print("Saving sel model...")
-            torch.save(self.sel_pred.state_dict(), os.path.join(self.save_dir, 'sel_models.dump'))
+            torch.save(self.sel_pred.state_dict(), os.path.join(self.save_dir, 'sel_randn_models.dump'))
         if acc[2] > self.acc[1]:
             self.acc[1] = acc[2]
             print("Saving cond model...")
-            torch.save(self.cond_pred.state_dict(), os.path.join(self.save_dir, 'cond_models.dump'))
+            torch.save(self.cond_pred.state_dict(), os.path.join(self.save_dir, 'cond_randn_models.dump'))
         if acc[3] > self.acc[2]:
             self.acc[2] = acc[3]
             print("Saving group model...")
-            torch.save(self.group_pred.state_dict(), os.path.join(self.save_dir, 'group_models.dump'))
+            torch.save(self.group_pred.state_dict(), os.path.join(self.save_dir, 'group_randn_models.dump'))
         if acc[4] > self.acc[3]:
             self.acc[3] = acc[4]
             print("Saving order model...")
-            torch.save(self.order_pred.state_dict(), os.path.join(self.save_dir, 'order_models.dump'))
+            torch.save(self.order_pred.state_dict(), os.path.join(self.save_dir, 'order_randn_models.dump'))
         if acc[5] > self.acc[4]:
             print("Saving from model...")
             self.acc[4] = acc[5]
@@ -1015,10 +1015,10 @@ class TypeSQL(nn.Module):
 
         return ret_sqls
 
-    def evaluate(self, score, gt_data):
+    def evaluate(self, score, gt_data, batch, log):
         pred_queries = self.gen_query(score)
         acc = self.check_acc(pred_queries, gt_data)
-        return acc
+        return acc, acc, acc, acc
 
     def preprocess(self, batch):
         q_seq = []
@@ -1138,7 +1138,7 @@ class TypeSQL(nn.Module):
             table_names = list(set(table_names))
 
             # Get Tables' designated numbers
-            table_org = [n.lower() for n in item['tbl']]
+            table_org = [n.lower() for n in item['tbl_org']]
             table_in_num = [table_org.index(name.lower()) for name in table_names]
 
             # Ground truth table
