@@ -104,8 +104,9 @@ class SelPredictor(nn.Module):
 
         col_emb = []
         for b in range(B):
-            cur_col_emb = torch.stack([col_enc[b, x]
-                for x in chosen_sel_gt[b]] + [col_enc[b, 0]] * (5 - len(chosen_sel_gt[b])))
+            cur_col_emb = [col_enc[b, x] for x in chosen_sel_gt[b]]
+            cur_col_emb += [col_enc[b, 0]] * (5 - len(chosen_sel_gt[b]))
+            cur_col_emb = torch.stack(cur_col_emb)
             col_emb.append(cur_col_emb)
         col_emb = torch.stack(col_emb) # (B, 4, hd)
 

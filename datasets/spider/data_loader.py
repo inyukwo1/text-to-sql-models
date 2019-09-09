@@ -76,6 +76,7 @@ class DataLoader():
             sql_tmp['db_id'] = item['db_id']
             sql_tmp['db'] = db
             sql_tmp['tbl'] = db['table_names']
+            sql_tmp['tbl_org'] = db['table_names_original']
             sql_tmp['foreign_keys'] = db['foreign_keys']
             sql_tmp['primary_keys'] = db['primary_keys']
 

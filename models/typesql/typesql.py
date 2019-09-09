@@ -190,23 +190,18 @@ class TypeSQL(nn.Module):
 
         # Load models
         print("Loading sel model...")
-        self.sel_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "sel_models.dump"), map_location=device))
+        self.sel_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "sel_randn_models.dump"), map_location=device))
         print("Loading cond model...")
-        self.cond_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "cond_models.dump"), map_location=device))
+        self.cond_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "cond_randn_models.dump"), map_location=device))
         print("Loading group model...")
-        self.group_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "group_models.dump"), map_location=device))
+        self.group_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "group_randn_models.dump"), map_location=device))
         print("Loading order model...")
-        self.order_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "order_models.dump"), map_location=device))
+        self.order_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "order_randn_models.dump"), map_location=device))
         if self.use_from:
             print("Loading from model...")
             self.from_pred.load_state_dict(torch.load(os.path.join(self.save_dir, "from_models.dump"), map_location=device))
-
-        if self.bert:
-            print("Loading Bert model...")
-            self.bert_model.main_bert.load_state_dict(
-                torch.load(os.path.join(self.save_dir, "bert_from_models.dump"), map_location=device))
-            self.bert_model.bert_param.load_state_dict(
-                torch.load(os.path.join(self.save_dir, "bert_from_params.dump"), map_location=device))
+            self.from_pred.bert.main_bert.load_state_dict(torch.load(os.path.join(self.save_dir, "bert_from_models.dump"), map_location=device))
+            self.from_pred.bert.bert_param.load_state_dict(torch.load(os.path.join(self.save_dir, "bert_from_params.dump"), map_location=device))
 
     def save_model(self, acc):
         print('tot_acc:{} sel_acc:{} cond_acc:{} gby_acc:{} ody_acc:{} from_acc:{}'.format(*acc))
@@ -241,15 +236,15 @@ class TypeSQL(nn.Module):
         q_seq, col_num, col_org_seq, tbl_ans, from_col_seq, history, q_emb, q_len, q_q_len, sep_embeddings, cols, q_type, selected_tbls = input_data
 
         B = len(q_seq)
-        max_col_len = max(col_num)
 
+        max_col_len = max(col_num)
         x_emb_var, x_len = self.embed_layer.gen_x_batch(q_seq, is_list=True, is_q=True) #
         x_type_emb_var, x_type_len = self.embed_layer.gen_x_batch(q_type, is_list=True, is_q=True)  #
         col_inp_var, col_len = self.embed_layer.gen_x_batch(cols, is_list=True)
 
         # For from predictor
         hs_emb_var, hs_len = self.embed_layer.gen_x_history_batch(history)
-        from_score = self.from_pred([q_emb, q_len, q_q_len, hs_emb_var, hs_len, sep_embeddings], single_forward=True) if self.use_from else None
+        from_score = self.from_pred([q_emb, q_len, q_q_len, hs_emb_var, hs_len, sep_embeddings], single_forward=False) if self.use_from else None
 
         if self.use_from:
             # Create bitmap
@@ -1000,9 +995,12 @@ class TypeSQL(nn.Module):
                 cur_sql = []
                 #try:
                 cur_sql.extend([s[1] if isinstance(s, list) else s for s in cur_sel])
-                if len(cur_tables.keys()) == 0:
-                    cur_tables[0] = []
-                cur_sql.extend(["from", schema["table_names_original"][list(cur_tables.keys())[0]]])
+                if full_graphs:
+                    cur_sql.extend(["from", schema["table_names_original"][list(full_graphs[b])[0]]])
+                else:
+                    if len(cur_tables.keys()) == 0:
+                        cur_tables[0] = []
+                    cur_sql.extend(["from", schema["table_names_original"][list(cur_tables.keys())[0]]])
                 if len(cur_conds) > 0:
                     cur_sql.extend([s[1] if isinstance(s, list) else s for s in cur_conds])
                 if len(cur_group) > 0:
@@ -1138,7 +1136,7 @@ class TypeSQL(nn.Module):
             table_names = list(set(table_names))
 
             # Get Tables' designated numbers
-            table_org = [n.lower() for n in item['tbl']]
+            table_org = [n.lower() for n in item['tbl_org']]
             table_in_num = [table_org.index(name.lower()) for name in table_names]
 
             # Ground truth table
@@ -1150,11 +1148,31 @@ class TypeSQL(nn.Module):
         else:
             q_emb = q_len = q_q_len = label = sep_embeddings = None
 
+        q_embs = []
+        q_lens = []
+        q_q_lens = []
+        schemas = []
+        table_graph_lists = []
+        full_graph_lists = []
+        sep_embedding_lists = []
+
+        for item in batch:
+            labels.append(item['join_table_dict'])
+            schemas.append(item['schema'])
+            q_emb, q_len, q_q_len, table_graph_list, full_graph_list, sep_embeddings = self.embed_layer.gen_bert_for_eval(
+                item['question_toks'], item['schema'])
+            q_embs.append(q_emb)
+            q_lens.append(q_len)
+            q_q_lens.append(q_q_len)
+            table_graph_lists.append(table_graph_list)
+            full_graph_lists.append(full_graph_list)
+            sep_embedding_lists.append(sep_embeddings)
+
         # From predictor
         if self.use_from and not self.training:
             input_data, gt_data = self.from_pred.preprocess(batch)
             scores = self.from_pred(input_data)
-            from_err_seq, selected_tbls, full_graphs = self.from_pred.check_acc(scores, gt_data)
+            from_err_seq, selected_tbls, full_graphs = self.from_pred.check_acc(scores, gt_data, batch)
         else:
             from_err_seq = [0] * len(batch)
             selected_tbls = [[0]] * len(batch)
@@ -1162,6 +1180,6 @@ class TypeSQL(nn.Module):
 
         # To-Do: change to dictionary?
         gt_data = (ans_seq, label, vis_seq, batch, from_err_seq, col_org_seq, schema_seq, full_graphs)
-        input_data = (q_seq_concol, col_num, col_org_seq, tbl_ans, from_col_seq, history, q_emb, q_len, q_q_len, sep_embeddings, cols, q_type, selected_tbls)
+        input_data = (q_seq_concol, col_num, col_org_seq, tbl_ans, from_col_seq, history, q_embs, q_lens, q_q_lens, sep_embedding_lists, cols, q_type, selected_tbls)
 
         return input_data, gt_data

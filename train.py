@@ -9,7 +9,7 @@ if __name__ == '__main__':
     # Parse Arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default='', help='Model Name')
-    parser.add_argument('--data_name', type=str, default='', help='Dataset Name')
+    parser.add_argument('--data_name', type=str, default='spider', help='Dataset Name')
     parser.add_argument('--param', type=str, default='parameters.json', help='json file containing parameters')
     parser.add_argument('--not_save', action='store_true')
     args = parser.parse_args()

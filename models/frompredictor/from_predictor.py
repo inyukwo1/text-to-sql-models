@@ -14,12 +14,12 @@ class FromPredictor(nn.Module):
         self.acc_num = 1
         self.acc = 0
 
-        self.N_h = H_PARAM['N_h']
+        self.N_h = 300 #H_PARAM['N_h']
         self.N_depth = H_PARAM['N_depth']
         self.gpu = H_PARAM['gpu']
         self.use_hs = H_PARAM['use_hs']
         self.B_word = H_PARAM['B_WORD']
-        self.N_word = H_PARAM['N_WORD']
+        self.N_word = 300 #H_PARAM['N_WORD']
         self.threshold = H_PARAM['threshold'] #0.5
 
         self.save_dir = H_PARAM['save_dir']
@@ -121,7 +121,7 @@ class FromPredictor(nn.Module):
         loss = F.binary_cross_entropy_with_logits(score, labels)
         return loss
 
-    def check_acc(self, scores, gt_data, batch=None, log=False):
+    def check_acc(self, scores, gt_data, batch=None, log=True):
         # Parse Input
         graph, table_graph_list, full_graph_lists, schemas = gt_data
 
@@ -134,7 +134,7 @@ class FromPredictor(nn.Module):
             for t in graph[i]:
                 ans_graph[int(t)] = graph[i][t]
             graph_correct = graph_checker(selected_graph, ans_graph, schemas[i])
-            if log and not graph_correct:
+            if log:
                 print("==========================================")
                 print("question: {}".format(batch[i]["question"]))
                 print("sql: {}".format(batch[i]["query"]))
@@ -158,7 +158,7 @@ class FromPredictor(nn.Module):
         return graph_correct_list, selected_tbls, full_graphs
 
     def evaluate(self, score, gt_data, batch=None, log=False):
-        return self.check_acc(score, gt_data, batch, log)[0].count(True)
+        return self.check_acc(score, gt_data, batch, True)[0].count(True)
 
     def preprocess(self, batch):
         q_seq = []

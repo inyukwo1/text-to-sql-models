@@ -32,7 +32,7 @@ def train(model, dataloader):
 def eval(model, dataloader, log=False):
     total_acc = np.zeros(model.acc_num)
     model.eval()
-    dataloader.shuffle()
+    # dataloader.shuffle()
     batches = dataloader.get_eval()
     for batch in batches:
         # preprocess
@@ -52,8 +52,10 @@ def test(model, dataloader, output_path):
     file = open(output_path, "w")
     model.eval()
     batches = dataloader.get_eval()
+    graph_correct = []
     for batch in batches:
         input_data, gt_data = model.preprocess(batch)
+        graph_correct += gt_data[4]
 
         score = model.forward(input_data)
 
@@ -62,7 +64,8 @@ def test(model, dataloader, output_path):
         for sql in gen_sqls:
             file.write("{}\n".format(sql))
     file.close()
-
+    with open("graph.txt","w") as f:
+        f.write("{}".format(graph_correct))
 
 def SIZE_CHECK(tensor, size):
     for idx, dim in enumerate(size):
