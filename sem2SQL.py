@@ -311,7 +311,78 @@ def infer_from_clause(table_names, schema, columns):
                         new_join_clause.append(t)
                 join_clause = new_join_clause
 
-    join_clause = ' JOIN '.join(['%s AS %s' % (jc[0], jc[1]) for jc in join_clause])
+    # Custom Function1
+    # Parse foreign key info to table and column
+    def parse_join_constraints(schema):
+        cond_list = []
+        for item in schema['foreign_keys']:
+            # Make sure column names are the same
+            c1 = schema['column_names_original'][item[0]]
+            c2 = schema['column_names_original'][item[1]]
+            cond_list += [(c1, c2)]
+        return cond_list
+
+    # Custom Function2
+    def reorder_join_tables(join_clause):
+        if len(join_clause) < 3:
+            return join_clause
+        new_join_clause = []
+        join_table_names = [item[0] for item in join_clause]
+        # Change Table orders in connected sequence
+        for i in range(len(join_clause)):
+            for j in range(len(join_clause)):
+             path = list(schema['graph'].dijkstra(join_clause[i][0], join_clause[j][0]))
+             if set(path) == set(join_table_names):
+                # Permute sequence
+                for item in path:
+                    idx = join_table_names.index(item)
+                    new_join_clause += [join_clause[idx]]
+                return new_join_clause
+        return join_clause
+               
+    cond_list = parse_join_constraints(schema)
+    join_clause = reorder_join_tables(join_clause)
+
+    #Find columns for the Join Condition
+    join_clause[0] += (None,)
+    found = False
+    for idx in range(len(join_clause)-1):
+        current_table = join_clause[idx][0]
+        next_table = join_clause[idx+1][0]
+        current_tbl_idx = schema['table_names_original'].index(current_table)
+        next_tbl_idx = schema['table_names_original'].index(next_table)
+
+        # Make sure no self join (?)
+        assert current_tbl_idx != next_tbl_idx
+
+        tar_set = set((current_tbl_idx, next_tbl_idx))
+        for item in cond_list:
+            cur_set = set((item[0][0], item[1][0]))
+            # If find primary and foreign relation columns
+            if cur_set == tar_set:
+                if item[0][0] == current_tbl_idx:
+                    join_clause[idx] += (item[0][1],)
+                    join_clause[idx+1] += (item[1][1],)
+                else:
+                    join_clause[idx] += (item[1][1],)
+                    join_clause[idx + 1] += (item[0][1],)
+                found = True
+                break
+        if not found:
+            ### 'FROM Condition with non Primary & Foreign Key Columns'
+            return 'FROM ' + ' JOIN '.join(['%s AS %s' % (jc[0], jc[1]) for jc in join_clause])
+
+    # Parse Join with Condition
+    if len(join_clause) == 1:
+        join_clause = ' JOIN '.join(['%s AS %s' % (jc[0], jc[1]) for jc in join_clause])
+    else:
+        clause = '{} AS {}'.format(join_clause[0][0], join_clause[0][1])
+        for idx in range(1, len(join_clause)):
+            pre_js = join_clause[idx-1]
+            cur_js = join_clause[idx]
+            clause += ' JOIN {} AS {} ON {}.{} = {}.{}'.format(cur_js[0], cur_js[1], pre_js[1], pre_js[3], cur_js[1], cur_js[2])
+        join_clause = clause
+
     return 'FROM ' + join_clause
 
 def replace_col_with_original_col(query, col, current_table):
@@ -625,6 +696,42 @@ def to_str(sql_json, N_T, schema, pre_table_names=None):
                             group_by_clause = 'GROUP BY ' + col_to_str('none', find_primary[0],
                                                                        find_primary[1],
                                                                        table_names, N_T)
+    '''
+    intersect_clause = ''
+    if 'intersect' in sql_json:
+        sql_json['intersect']['sql'] = sql_json['sql']
+        intersect_clause = 'INTERSECT ' + to_str(sql_json['intersect'], len(table_names) + 1, schema, table_names)
+    union_clause = ''
+    if 'union' in sql_json:
+        sql_json['union']['sql'] = sql_json['sql']
+        union_clause = 'UNION ' + to_str(sql_json['union'], len(table_names) + 1, schema, table_names)
+    except_clause = ''
+    if 'except' in sql_json:
+        sql_json['except']['sql'] = sql_json['sql']
+        except_clause = 'EXCEPT ' + to_str(sql_json['except'], len(table_names) + 1, schema, table_names)
+    '''
+    # print(current_table['table_names_original'])
+    table_names_replace = {}
+    for a, b in zip(current_table['table_names_original'], current_table['table_names']):
+        table_names_replace[b] = a
+    new_table_names = {}
+    for key, value in table_names.items():
+        if key is None:
+            continue
+        new_table_names[table_names_replace[key]] = value
+    from_clause = infer_from_clause(new_table_names, schema, all_columns).strip()
+
+    # Change back table names
+    table_names_replace_back = {}
+    for a, b in zip(current_table['table_names_original'], current_table['table_names']):
+        table_names_replace_back[a] = b
+    old_table_names = {}
+    for key, value in new_table_names.items():
+        if key is None:
+            continue
+        old_table_names[table_names_replace_back[key]] = value
+    table_names = old_table_names
+
     intersect_clause = ''
     if 'intersect' in sql_json:
         sql_json['intersect']['sql'] = sql_json['sql']
@@ -638,16 +745,6 @@ def to_str(sql_json, N_T, schema, pre_table_names=None):
         sql_json['except']['sql'] = sql_json['sql']
         except_clause = 'EXCEPT ' + to_str(sql_json['except'], len(table_names) + 1, schema, table_names)
 
-    # print(current_table['table_names_original'])
-    table_names_replace = {}
-    for a, b in zip(current_table['table_names_original'], current_table['table_names']):
-        table_names_replace[b] = a
-    new_table_names = {}
-    for key, value in table_names.items():
-        if key is None:
-            continue
-        new_table_names[table_names_replace[key]] = value
-    from_clause = infer_from_clause(new_table_names, schema, all_columns).strip()
 
     sql = ' '.join([select_clause_str, from_clause, where_clause, group_by_clause, have_clause, sup_clause, order_clause,
                     intersect_clause, union_clause, except_clause])
@@ -670,7 +767,6 @@ if __name__ == '__main__':
     alter_not_in(datas, schemas=schemas)
     alter_inter(datas)
     alter_column0(datas)
-
 
     index = range(len(datas))
     count = 0
