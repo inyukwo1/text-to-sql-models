@@ -45,10 +45,22 @@ class Example:
 
         self.sketch = list()
         if self.truth_actions:
-            for ta in self.truth_actions:
+            # Get action indices from self.truth_actions
+            action_indices = utils.seq2idx(self.truth_actions)
+
+            # Randomly change grammar sequence order
+            new_action_indices = copy.deepcopy(action_indices)
+            for item in new_action_indices:
+                random.shuffle(item)
+
+            # Get new sequence of actions
+            seq = utils.idx2seq(self.truth_actions, new_action_indices, 0)
+
+            for ta in seq:
                 if isinstance(ta, define_rule.C) or isinstance(ta, define_rule.T) or isinstance(ta, define_rule.A):
                     continue
                 self.sketch.append(ta)
+
 
 
 class cached_property(object):

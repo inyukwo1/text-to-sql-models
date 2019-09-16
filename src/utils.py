@@ -8,6 +8,7 @@
 
 import json
 import time
+import pickle
 
 import copy
 import numpy as np
@@ -22,16 +23,68 @@ from src.rule.semQL import Sup, Sel, Order, Root, Filter, A, N, C, T, Root1
 wordnet_lemmatizer = WordNetLemmatizer()
 
 
+def idx2seq(seq, indices, cur_idx):
+    if indices[cur_idx]:
+        cur = indices[cur_idx]
+        new_seq = []
+        for item in cur:
+            new_seq += idx2seq(seq, indices, item)
+        return [seq[cur_idx]] + new_seq
+    else:
+        return [seq[cur_idx]]
+
+
+def get_terminal_idx(seq, parent, begin_idx):
+    '''
+    :param seq: List (list of SemQL in left-to-right order)
+    :param parent: Action (parent action of current action)
+    :param begin_idx: Int (idx of current action in seq)
+    :return: Int (terminal idx of the current action with respect to seq)
+    '''
+    cur = seq[begin_idx]
+    assert str(parent) == str(cur.parent)
+
+    if cur.children:
+        children_idx = []
+        for child in cur.children:
+            target_idx = children_idx[-1] + 1 if children_idx else begin_idx + 1
+            children_idx += [get_terminal_idx(seq, cur, target_idx)]
+        return children_idx[-1]
+    else:
+        return begin_idx
+
+
+def seq2idx(seq):
+    '''
+    :param seq: List (list of SemQL in left-to-right order)
+    :return: List (list of list containing indices as a tree)
+    '''
+    indices = []
+    for idx, cur in enumerate(seq):
+        children_idx = [idx+1] if cur.children else []
+        children_idx += [get_terminal_idx(seq, cur, children_idx[-1]) + 1 for children_num in range(1, len(cur.children))]
+        indices += [children_idx]
+
+    return indices
+
 def load_word_emb(file_name, use_small=False):
     print ('Loading word embedding from %s'%file_name)
     ret = {}
-    with open(file_name) as inf:
-        for idx, line in enumerate(inf):
-            if (use_small and idx >= 500000):
-                break
-            info = line.strip().split(' ')
-            if info[0].lower() not in ret:
-                ret[info[0]] = np.array(list(map(lambda x:float(x), info[1:])))
+
+    cache_name = file_name.replace('txt', 'pkl')
+    if os.path.isfile(cache_name) and not use_small:
+        with open(cache_name, 'rb') as cache_file:
+            ret = pickle.load(cache_file)
+    else:
+        with open(file_name) as inf:
+            for idx, line in enumerate(inf):
+                if (use_small and idx >= 5000):
+                    break
+                info = line.strip().split(' ')
+                if info[0].lower() not in ret:
+                    ret[info[0]] = np.array(list(map(lambda x: float(x), info[1:])))
+        with open(cache_name, 'wb') as cache_file:
+            pickle.dump(ret, cache_file)
     return ret
 
 def lower_keys(x):
