@@ -7,10 +7,11 @@
 """
 
 import copy
+import random
 
 import src.rule.semQL as define_rule
 from src.models import nn_utils
-
+from src import utils
 
 class Example:
     """
