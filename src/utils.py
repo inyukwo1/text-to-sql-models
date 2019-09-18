@@ -309,7 +309,7 @@ def epoch_train(model, optimizer, batch_size, sql_data, table_data,
         st = ed
     return cum_loss / len(sql_data)
 
-def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
+def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3, log_path=None, epoch=None):
     model.eval()
     perm = list(range(len(sql_data)))
     st = 0
@@ -317,10 +317,18 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
     json_datas = []
     while st < len(sql_data):
         ed = st+batch_size if st+batch_size < len(perm) else len(perm)
-        examples = to_batch_seq(sql_data, table_data, perm, st, ed,
-                                                        is_train=False)
+        examples = to_batch_seq(sql_data, table_data, perm, st, ed, is_train=True)
+        #examples = to_batch_seq(sql_data, table_data, perm, st, ed,
+        #                                                is_train=False)
         for example in examples:
-            results_all = model.parse(example, beam_size=beam_size)
+            # Get Log file
+            file = get_log_file(log_path, example)
+
+            # Process
+            file.write('Epoch: {}\n'.format(epoch))
+            results_all = model.parse(example, beam_size=beam_size, file=file, epoch=epoch)
+            file.close()
+
             results = results_all[0]
             list_preds = []
             try:
@@ -399,3 +407,33 @@ def init_log_checkpoint_path(args):
     if os.path.exists(save_path) is False:
         os.makedirs(save_path)
     return save_path
+
+
+def get_log_file(log_path='./analysis', example=None):
+    # Parse Info
+    db_id = example.sql_json['db_id']
+    nl = example.sql_json['question']
+    sql = example.sql_json['query']
+    semql = example.sql_json['rule_label']
+    semql_sketch = example.sketch
+
+    # Check if file exist in the log_path
+    if not os.path.exists(log_path):
+        os.makedirs(log_path)
+    onlyfiles = [f for f in os.listdir(log_path) if os.path.isfile(os.path.join(log_path, f))]
+
+    nl_modified = nl.replace('/', '').replace(' ', '_')
+
+    # Open File
+    file_name = os.path.join(log_path, nl_modified)
+    file = open(file_name, 'a' if nl_modified in onlyfiles else 'w')
+
+    # Write Meta Data
+    if nl not in onlyfiles:
+        file.write('DB_ID: {}\n'.format(db_id))
+        file.write('TEXT: {}\n'.format(nl))
+        file.write('SQL: {}\n'.format(sql))
+        file.write('SemQL: {}\n'.format(semql))
+        file.write('SemQL_sketch: {}\n\n'.format(semql_sketch))
+
+    return file
