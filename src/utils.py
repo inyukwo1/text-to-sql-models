@@ -216,7 +216,7 @@ def is_valid(rule_label, col_table_dict, sql):
 
 
 def to_batch_seq(sql_data, table_data, idxes, st, ed,
-                 is_train=True):
+                 is_train=True, is_fake_train=False):
     """
 
     :return:
@@ -224,6 +224,9 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
     examples = []
 
     for i in range(st, ed):
+        if i == 161:
+            stop = 1
+
         sql = sql_data[idxes[i]]
         table = table_data[sql['db_id']]
 
@@ -243,7 +246,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
         process_dict['col_set_iter'][0] = ['count', 'number', 'many']
 
         rule_label = None
-        if 'rule_label' in sql and is_train:
+        if 'rule_label' in sql and (is_train or is_fake_train):
             # handle the subquery on From cause
             if 'from' in sql['rule_label']:
                 continue
@@ -317,10 +320,14 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3, log_path=Non
     json_datas = []
     while st < len(sql_data):
         ed = st+batch_size if st+batch_size < len(perm) else len(perm)
-        examples = to_batch_seq(sql_data, table_data, perm, st, ed, is_train=True)
+        examples = to_batch_seq(sql_data, table_data, perm, st, ed, is_train=False, is_fake_train=True)
         #examples = to_batch_seq(sql_data, table_data, perm, st, ed,
         #                                                is_train=False)
-        for example in examples:
+        for idx, example in enumerate(examples):
+
+            assert example.sql_json['question_arg'] == sql_data[st+idx]['question_arg'], "idx:{} {} || {}".format(st+idx, example.sql_json['question_arg'], sql_data[st+idx]['question_arg'])
+            assert example.sql == sql_data[st+idx]['query'], "idx:{} {} || {} ".format(st+idx, example.sql, sql_data[st+idx]['query'])
+
             # Get Log file
             file = get_log_file(log_path, example)
 
@@ -332,7 +339,6 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3, log_path=Non
             results = results_all[0]
             list_preds = []
             try:
-
                 pred = " ".join([str(x) for x in results[0].actions])
                 for x in results:
                     list_preds.append(" ".join(str(x.actions)))
@@ -429,7 +435,7 @@ def get_log_file(log_path='./analysis', example=None):
     file = open(file_name, 'a' if nl_modified in onlyfiles else 'w')
 
     # Write Meta Data
-    if nl not in onlyfiles:
+    if nl_modified not in onlyfiles:
         file.write('DB_ID: {}\n'.format(db_id))
         file.write('TEXT: {}\n'.format(nl))
         file.write('SQL: {}\n'.format(sql))

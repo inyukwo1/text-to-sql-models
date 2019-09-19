@@ -485,7 +485,7 @@ class IRNet(BasicModel):
             file.write('Solution Action Id: {}\n'.format(action_id))
             file.write('Solution Action Type Str: {}\n'.format(action_type))
             file.write('Solution Action Type Id: {}\n'.format(action_type_id))
-            file.write('Scores: {}\n\n'.format(all_probs))
+            file.write('Scores: {}\n\n'.format(str(all_probs).replace('\n', ' ').replace('\t', '')))
 
             live_hyp_ids = []
             new_beams = []
@@ -755,7 +755,7 @@ class IRNet(BasicModel):
                 file.write('Solution Action Id: {}\n'.format(action_id))
                 file.write('Solution Action Type Str: {}\n'.format(action_type))
                 file.write('Solution Action Type Id: {}\n'.format(action_type_id))
-                file.write('Scores: {}\n\n'.format(all_probs))
+                file.write('Scores: {}\n\n'.format(str(all_probs).replace('\n', ' ').replace('\t', '')))
 
             live_hyp_ids = []
             new_beams = []

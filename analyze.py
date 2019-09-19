@@ -66,6 +66,9 @@ def analyze(args):
     utils.save_args(args, os.path.join(model_save_path, 'config.json'))
     best_dev_acc = .0
 
+    # Remove that has inner query in the from clause
+    val_sql_data = [item for item in val_sql_data if 'from' not in item['rule_label']]
+
     try:
         with open(os.path.join(model_save_path, 'epoch.log'), 'w') as epoch_fd:
             for epoch in tqdm.tqdm(range(args.epoch)):
