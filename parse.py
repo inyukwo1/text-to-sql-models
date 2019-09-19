@@ -36,7 +36,13 @@ Scores: tensor([-31.5154, -37.8025, -31.0521,   0.0000])
 '''
 -- Result Dictionary Format --
 - Epoch:
-    - prod_id:
+    - 'prod':
+        - length:
+            - acc
+            - correct
+            - total
+            - item
+    - 'type':
         - length:
             - acc
             - correct
@@ -198,7 +204,7 @@ def parse_list2dic(e_list, key_name, key_dic):
 
     return dic_action_id
 
-def analyze(log_path):
+def parse_log2json(log_path):
     # Read Files
     onlyfiles = [f for f in os.listdir(log_path) if os.path.isfile(os.path.join(log_path, f))]
 
@@ -236,15 +242,45 @@ def analyze(log_path):
     print('Parsing Done!')
 
     out_file_name = 'analysis_out.txt'
-    with open(out_file_name, 'w') as f:
+    out_file_path = os.path.join(log_path, out_file_name)
+    with open(out_file_path, 'w') as f:
         json.dump(dic_epoch, f)
 
-    print('Dumping result to {}'.format(out_file_name))
+    print('Dumping result to {}'.format(out_file_path))
+
+    return dic_epoch
 
 
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('--log_path', default='./analysis_backup', type=str, help='Path for log directory')
+    arg_parser.add_argument('--target_epoch', default='0', type=str, help='Target Epoch to analyze')
+    arg_parser.add_argument('--analyze_type', default='type', type=str, help='Analzying Type. i.e. "type" or "prod"')
     args = arg_parser.parse_args()
 
-    analyze(args.log_path)
+    # check if file exist
+    onlyfiles = [f for f in os.listdir(args.log_path) if os.path.isfile(os.path.join(args.log_path, f))]
+    out_file_name = 'analysis_out.txt'
+    if out_file_name in onlyfiles:
+        print('Loading from file...')
+        with open(os.path.join(args.log_path, out_file_name)) as f:
+            js = json.load(f)
+    else:
+        print('Parsing...')
+        js = parse_log2json(args.log_path)
+
+    # Analyze
+    target_epoch = args.target_epoch
+    type = args.analyze_type
+
+    data = js[target_epoch][type]
+    id_dic = id2type if 'type' in type else id2prod
+
+    print('Epoch: {}'.format(target_epoch))
+    for idx, action_item in data.items():
+        action = id_dic[int(idx)]
+        print('\tAction: {}'.format(action))
+        for length, item in action_item.items():
+            print('\t\t\tLength: {} Total:{} Acc:{}'.format(length, item['total'], item['acc']))
+
+    print('\nDone..!')
