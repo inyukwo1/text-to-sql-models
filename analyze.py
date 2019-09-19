@@ -60,9 +60,10 @@ def analyze(args):
         model.load_state_dict(pretrained_modeled)
 
     model.word_emb = utils.load_word_emb(args.glove_embed_path)
-    # begin train
 
+    # begin train
     model_save_path = utils.init_log_checkpoint_path(args)
+    log_path = os.path.join(model_save_path, 'analysis')
     utils.save_args(args, os.path.join(model_save_path, 'config.json'))
     best_dev_acc = .0
 
@@ -80,7 +81,7 @@ def analyze(args):
                                    sketch_loss_coefficient=args.sketch_loss_coefficient)
                 epoch_end = time.time()
                 json_datas = utils.epoch_acc(model, args.batch_size, val_sql_data, val_table_data,
-                                             beam_size=args.beam_size, log_path='./analysis', epoch=epoch)
+                                             beam_size=args.beam_size, log_path=log_path, epoch=epoch)
                 acc = utils.eval_acc(json_datas, val_sql_data)
 
                 if acc > best_dev_acc:

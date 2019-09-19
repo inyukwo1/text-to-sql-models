@@ -4,7 +4,6 @@ devices=$1
 save_name=$2
 
 CUDA_VISIBLE_DEVICES=$devices nohup python -u analyze.py --dataset ./data \
---load_model ./saved_model/best_model.model \
 --glove_embed_path ./data/glove.42B.300d.txt \
 --cuda \
 --epoch 50 \
