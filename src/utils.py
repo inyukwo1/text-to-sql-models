@@ -67,6 +67,7 @@ def seq2idx(seq):
 
     return indices
 
+
 def load_word_emb(file_name, use_small=False):
     print ('Loading word embedding from %s'%file_name)
     ret = {}
@@ -87,6 +88,7 @@ def load_word_emb(file_name, use_small=False):
             pickle.dump(ret, cache_file)
     return ret
 
+
 def lower_keys(x):
     if isinstance(x, list):
         return [lower_keys(v) for v in x]
@@ -94,6 +96,7 @@ def lower_keys(x):
         return dict((k.lower(), lower_keys(v)) for k, v in x.items())
     else:
         return x
+
 
 def get_table_colNames(tab_ids, tab_cols):
     table_col_dict = {}
@@ -104,6 +107,7 @@ def get_table_colNames(tab_ids, tab_cols):
     for ci in range(len(table_col_dict)):
         result.append(table_col_dict[ci])
     return result
+
 
 def get_col_table_dict(tab_cols, tab_ids, sql):
     table_dict = {}
@@ -164,6 +168,7 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
                         continue
                     col_set_type[sql['col_set'].index(col_probase)][3] += 1
 
+
 def process(sql, table):
 
     process_dict = {}
@@ -197,6 +202,7 @@ def process(sql, table):
     process_dict['table_names'] = table_names
 
     return process_dict
+
 
 def is_valid(rule_label, col_table_dict, sql):
     try:
@@ -280,6 +286,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
     else:
         return examples
 
+
 def epoch_train(model, optimizer, batch_size, sql_data, table_data,
                 args, epoch=0, loss_epoch_threshold=20, sketch_loss_coefficient=0.2):
     model.train()
@@ -311,6 +318,7 @@ def epoch_train(model, optimizer, batch_size, sql_data, table_data,
         cum_loss += loss.data.cpu().numpy()*(ed - st)
         st = ed
     return cum_loss / len(sql_data)
+
 
 def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3, log_path=None, epoch=None):
     model.eval()
@@ -356,6 +364,7 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3, log_path=Non
             json_datas.append(simple_json)
         st = ed
     return json_datas
+
 
 def eval_acc(preds, sqls):
     sketch_correct, best_correct = 0, 0
@@ -405,6 +414,7 @@ def save_checkpoint(model, checkpoint_name):
 def save_args(args, path):
     with open(path, 'w') as f:
         f.write(json.dumps(vars(args), indent=4))
+
 
 def init_log_checkpoint_path(args):
     save_path = args.save

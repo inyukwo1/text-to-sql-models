@@ -76,9 +76,9 @@ def analyze(args):
                 if args.lr_scheduler:
                     scheduler.step()
                 epoch_begin = time.time()
-                loss = utils.epoch_train(model, optimizer, args.batch_size, sql_data, table_data, args,
-                                   loss_epoch_threshold=args.loss_epoch_threshold,
-                                   sketch_loss_coefficient=args.sketch_loss_coefficient)
+                #loss = utils.epoch_train(model, optimizer, args.batch_size, sql_data, table_data, args,
+                #                   loss_epoch_threshold=args.loss_epoch_threshold,
+                #                   sketch_loss_coefficient=args.sketch_loss_coefficient)
                 epoch_end = time.time()
                 json_datas = utils.epoch_acc(model, args.batch_size, val_sql_data, val_table_data,
                                              beam_size=args.beam_size, log_path=log_path, epoch=epoch)

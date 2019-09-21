@@ -2,6 +2,8 @@ import os
 import json
 import argparse
 from src.rule import semQL
+from src.rule.semQL import *
+
 
 '''
 By Each Epoch
@@ -18,8 +20,8 @@ By Each Epoch
          - Chosen answer when wrong
          - List of data that this appears (File name by NL)
 '''
-'''
- -- Log File Format (Example) -- 
+# -- Log File Format (Example) --
+''' 
 Epoch: 0
 Type: Sketch
 Path History: []
@@ -34,7 +36,7 @@ Scores: tensor([-31.5154, -37.8025, -31.0521,   0.0000])
 '''
 
 '''
--- Result Dictionary Format --
+-- Parsed Json Format --
 - Epoch:
     - 'prod':
         - length:
@@ -66,6 +68,20 @@ relative_line_idx = ['Type: ', 'Path History: ', 'Correct: ', 'Prediction: ', 'S
                      'Solution Action Type Str: ', 'Solution Action Type Id: ', 'Scores: ']
 relative_line_idx = {y: x for x, y in enumerate(relative_line_idx)}
 
+non_sketch_classes = [C, T, A]
+
+def create_stack_element(cnt, text):
+    element = []
+    text = text.split(' ')
+    for x in text[1:]:
+        if x not in Keywords:
+            rule_type = eval(x)
+            if rule_type not in non_sketch_classes:
+                element += [rule_type]
+
+    return len(element) == 0, (cnt, [eval(text[0])] + element[1:])
+
+
 def parse_line(lines, idx, feature_name):
     # Get line
     offset = relative_line_idx[feature_name]
@@ -75,13 +91,16 @@ def parse_line(lines, idx, feature_name):
     assert feature_name in line, 'Line:{} Feature_Name:{}'.format(line, feature_name)
 
     # Get Value only
-    return line.replace(feature_name, '').replace(' ', '')
-
+    return line.replace(feature_name, '')
 
 
 def parse_epoch(file_name, epoch, lines):
     node_list = []
+    element_cnt = 1
+    stack = []
     # Parse infos in this epoch
+    if 'Solution Action Id: 36' in lines or 'Solution Action Id: 37' in lines or 'Solution Action Id: 38' in lines:
+        print('here')
     for idx in range(0, len(lines), 10):
         node = {'epoch': epoch, 'file_name': file_name}
 
@@ -122,6 +141,31 @@ def parse_epoch(file_name, epoch, lines):
         prediction = int(line)
         node['prediction'] = prediction
 
+        if node['type'] == 'Sketch':
+            # Create stack element
+            action_type = eval(parse_line(lines, idx, 'Solution Action Type Str: ').split('.')[-1][:-2])
+            solution = parse_line(lines, idx, 'Solution: ')
+            action = action_type.grammar_dict[int(solution)]
+            is_terminal, element = create_stack_element(element_cnt, action)
+
+            # Get Number
+            node['length_from_parent'] = element_cnt - stack[-1][0] if stack else 1
+            element_cnt += 1
+
+            # Push
+            stack += [element]
+
+            # Modify
+            if is_terminal:
+                while stack:
+                    top = stack[-1]
+                    if len(top[1]) == 1:
+                        del stack[-1]
+                        continue
+                    else:
+                        del top[1][1]
+                        break
+
         # Add to list
         node_list += [node]
 
@@ -154,13 +198,13 @@ def parse_file(f_path):
     file.close()
     return all_nodes
 
-def parse_list2dic(e_list, key_name, key_dic):
+
+def parse_list2dic(e_list, key_name, key_dic, length_key):
     # Create prod Dic
     dic_action_id = {id: [] for id in key_dic.keys()}
 
     # Categorize by action id
     for e_item in e_list:
-        #id = e_item['action_id']
         id = e_item[key_name]
         dic_action_id[id] += [e_item]
 
@@ -170,15 +214,17 @@ def parse_list2dic(e_list, key_name, key_dic):
         # Get All Lengths
         all_lengths = set()
         for a_item in a_list:
-            all_lengths.add(a_item['path_length'])
+            if length_key in a_item.keys():
+                all_lengths.add(a_item[length_key])
 
         # Make dic for length
         dic_length = {len: [] for len in all_lengths}
 
         # Add by length
         for a_item in a_list:
-            length = a_item['path_length']
-            dic_length[length] += [a_item]
+            if length_key in a_item.keys():
+                length = a_item[length_key]
+                dic_length[length] += [a_item]
 
         # correct (Epoch -> Action ID -> Length)
         for length, len_list in dic_length.items():
@@ -203,6 +249,7 @@ def parse_list2dic(e_list, key_name, key_dic):
         dic_action_id[a_id] = dic_length
 
     return dic_action_id
+
 
 def parse_log2json(log_path):
     # Read Files
@@ -232,11 +279,12 @@ def parse_log2json(log_path):
     # By Epoch (Epoch)
     for epoch, e_list in dic_epoch.items():
 
-        dic_action_id = parse_list2dic(e_list, 'action_id', id2prod)
-        dic_action_type_id = parse_list2dic(e_list, 'action_type_id', id2type)
+        dic_length = parse_list2dic(e_list, 'action_type_id', id2type, 'length_from_parent')
+        dic_action_id = parse_list2dic(e_list, 'action_id', id2prod, 'path_length')
+        dic_action_type_id = parse_list2dic(e_list, 'action_type_id', id2type, 'path_length')
 
         # Replace
-        tmp = {'prod': dic_action_id, 'type': dic_action_type_id}
+        tmp = {'prod': dic_action_id, 'type': dic_action_type_id, 'length_from_parent': dic_length}
         dic_epoch[epoch] = tmp
 
     print('Parsing Done!')
@@ -270,11 +318,17 @@ if __name__ == '__main__':
         js = parse_log2json(args.log_path)
 
     # Analyze
-    target_epoch = args.target_epoch
-    type = args.analyze_type
+    target_epoch = args.target_epoch if out_file_name in onlyfiles else int(args.target_epoch)
+    ana_type = args.analyze_type
+    data = js[target_epoch][ana_type]
 
-    data = js[target_epoch][type]
-    id_dic = id2type if 'type' in type else id2prod
+    if ana_type in ['type', 'length_from_parent']:
+        id_dic = id2type
+    elif ana_type in ['prod']:
+        id_dic = id2prod
+    else:
+        print('unknown analyze type: ', ana_type)
+        exit(-1)
 
     print('Epoch: {}'.format(target_epoch))
     for idx, action_item in data.items():
