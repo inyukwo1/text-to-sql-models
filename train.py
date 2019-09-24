@@ -82,8 +82,8 @@ if __name__ == '__main__':
     for epoch in range(H_PARAMS['epoch']):
         print('Epoch {} @ {} '.format(epoch + 1, datetime.datetime.now()), end='')
         # Training
-        # total_loss = train(model, dataloader)
-        total_loss = parallel_train(model, dataloader, 8)
+        total_loss = train(model, dataloader)
+        # total_loss = parallel_train(model, dataloader, 8)
         print('Loss: {}'.format(total_loss))
 
         # Evaluating

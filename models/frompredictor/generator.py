@@ -206,7 +206,7 @@ class GeneratorWrapper:
                     for j in range(entity_num):
                         print("   att[{}: {}]".format(j, print_att[i, j]))
                         print("   gld[{}: {}]".format(j, gold[i, j]), flush=True)
-        return losses, sum(accs)
+        return sum(losses), sum(accs)
 
     def evaluate(self, score, gt_data, batch=None, log=False):
         pass
