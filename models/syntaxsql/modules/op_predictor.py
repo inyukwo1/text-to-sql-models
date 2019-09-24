@@ -59,7 +59,7 @@ class OpPredictor(nn.Module):
         self.bce_logit = nn.BCEWithLogitsLoss()
         self.sigm = nn.Sigmoid()
         if self.gpu:
-            self.cuda()
+            self.cuda(0)
 
     def forward(self, input_data):
         q_emb_var, q_len, hs_emb_var, hs_len, col_emb_var, col_len, col_name_len, gt_col = input_data
@@ -112,7 +112,7 @@ class OpPredictor(nn.Module):
         truth_num = [len(t)-1 for t in truth] #num_score 0 maps to 1 in truth
         data = torch.from_numpy(np.array(truth_num))
         if self.gpu:
-            data = data.cuda()
+            data = data.cuda(0)
         truth_num_var = Variable(data)
         loss += self.CE(op_num_score, truth_num_var)
         # loss for op
@@ -122,7 +122,7 @@ class OpPredictor(nn.Module):
             truth_prob[b][truth[b]] = 1
         data = torch.from_numpy(np.array(truth_prob))
         if self.gpu:
-            data = data.cuda()
+            data = data.cuda(0)
         truth_var = Variable(data)
         #loss += self.mlsml(op_score, truth_var)
         #loss += self.bce_logit(op_score, truth_var)

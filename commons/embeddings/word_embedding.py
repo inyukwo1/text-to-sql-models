@@ -12,7 +12,6 @@ from models.frompredictor.ontology import Ontology
 from typing import List
 
 
-
 class WordEmbedding(nn.Module):
     def __init__(self, glove_path, N_word, gpu, SQL_TOK, use_bert=False,
             trainable=False, use_small=False):
@@ -23,7 +22,6 @@ class WordEmbedding(nn.Module):
         self.SQL_TOK = SQL_TOK
         self.use_bert = use_bert
         self.bert_tokenizer = BertTokenizer.from_pretrained('bert-large-cased', do_lower_case=False)
-
         word_emb = self._load_glove(glove_path, trainable, use_small)
 
         if trainable:
@@ -91,7 +89,7 @@ class WordEmbedding(nn.Module):
                 val_tok_array[i,t] = val_embs[i][t]
         val_tok = torch.from_numpy(val_tok_array)
         if self.gpu:
-            val_tok = val_tok.cuda()
+            val_tok = val_tok.cuda(0)
         val_tok_var = Variable(val_tok)
         val_inp_var = self.embedding(val_tok_var)
 
@@ -142,7 +140,7 @@ class WordEmbedding(nn.Module):
                     val_tok_array[i,t] = val_embs[i][t]
             val_tok = torch.from_numpy(val_tok_array)
             if self.gpu:
-                val_tok = val_tok.cuda()
+                val_tok = val_tok.cuda(0)
             val_tok_var = Variable(val_tok)
             val_inp_var = self.embedding(val_tok_var)
         else:
@@ -152,7 +150,7 @@ class WordEmbedding(nn.Module):
                     val_emb_array[i,t,:] = val_embs[i][t]
             val_inp = torch.from_numpy(val_emb_array)
             if self.gpu:
-                val_inp = val_inp.cuda()
+                val_inp = val_inp.cuda(0)
             val_inp_var = Variable(val_inp)
         return val_inp_var, val_len
 
@@ -169,7 +167,7 @@ class WordEmbedding(nn.Module):
             tokenized_one_q += [0] * (max_len - len(tokenized_one_q))
         tokenized_q = torch.LongTensor(tokenized_q)
         if self.gpu:
-            tokenized_q = tokenized_q.cuda()
+            tokenized_q = tokenized_q.cuda(0)
         return tokenized_q, q_len
 
     def encode_one_q_with_bert(self, one_q, schema: Schema, ontology: Ontology, matching_conts):
@@ -248,7 +246,7 @@ class WordEmbedding(nn.Module):
                 agg_emb_array[i,t,:] = ret[i][t]
         agg_inp = torch.from_numpy(agg_emb_array)
         if self.gpu:
-            agg_inp = agg_inp.cuda()
+            agg_inp = agg_inp.cuda(0)
         agg_inp_var = Variable(agg_inp)
 
         return agg_inp_var
@@ -277,7 +275,7 @@ class WordEmbedding(nn.Module):
                     val_tok_array[i,t] = val_embs[i][t]
             val_tok = torch.from_numpy(val_tok_array)
             if self.gpu:
-                val_tok = val_tok.cuda()
+                val_tok = val_tok.cuda(0)
             val_tok_var = Variable(val_tok)
             val_inp_var = self.embedding(val_tok_var)
         else:
@@ -288,7 +286,7 @@ class WordEmbedding(nn.Module):
                     val_emb_array[i,t,:] = val_embs[i][t]
             val_inp = torch.from_numpy(val_emb_array)
             if self.gpu:
-                val_inp = val_inp.cuda()
+                val_inp = val_inp.cuda(0)
             val_inp_var = Variable(val_inp)
 
         return val_inp_var, val_len
@@ -350,100 +348,85 @@ class WordEmbedding(nn.Module):
                 val_emb_array[i, t, :] = val_embs[i][t]
         val_inp = torch.from_numpy(val_emb_array)
         if self.gpu:
-            val_inp = val_inp.cuda()
+            val_inp = val_inp.cuda(0)
         val_inp_var = Variable(val_inp)
 
         return val_inp_var, val_len
 
-    def gen_for_generator(self, q, schemas: List[Schema], select_tabs, select_cols: List, select_cols_num: List, sqls: List):
+    def gen_for_generator(self, q, schemas: List[Schema], ontologies: List, sqls: List, trees: List):
         q_embs = []
         q_len = []
-        q_q_len = []
-        labels = []
-        topk_labels = []
-        entity_ranges_list = []
-        hint_tensors_list = []
+        q_ranges_list = []
+        new_q_seqs = []
+        table_ranges_list = []
+        column_ranges_list = []
+        new_ontologies = []
+        parse_trees = []
         input_qs = []
         new_schemas = []
-        new_sqls = []
+        new_query = []
+
         max_label_num = max([schema.col_num() + schema.tab_num() for schema in schemas])
         for b, one_q in enumerate(q):
             schema = schemas[b]
-            label = []
-            entity_ranges = []
-            hint_tensors = []
+            q_ranges = []
+            table_ranges = []
+            col_ranges = []
             input_q = "[CLS] "
-            hint_tensors.append(torch.from_numpy(np.array([0.0])).float())
-            schema_matching_scores = schema.make_hint_vector(one_q)
             fin_len = 1
+
             for idx, one_word in enumerate(one_q):
                 input_q += one_word + " "
                 new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
-                appended = new_fin_len - fin_len
-                vec = [schema_matching_scores[idx]]
-                for _ in range(appended):
-                    hint_tensors.append(torch.from_numpy(np.array(vec)).float())
-
+                q_ranges.append((fin_len, new_fin_len))
                 fin_len = new_fin_len
-            hint_tensors = torch.stack(hint_tensors)
-            if torch.cuda.is_available():
-                hint_tensors = hint_tensors.cuda()
 
             one_q_q_len = len(self.bert_tokenizer.tokenize(input_q))
             fin_len = one_q_q_len
             for table_num in schema.get_all_table_ids():
+                # TODO - [experiments]
+                #             order - tables, cols <-
+                #             order - table, col, table, col ...
                 input_q += " [SEP] " + schema.get_table_name(table_num)
                 new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
-                entity_ranges.append([fin_len, new_fin_len])
+                table_ranges.append((fin_len, new_fin_len))
                 fin_len = new_fin_len
-                if table_num == select_tabs[b]:
-                    label.append(1.)
-                else:
-                    label.append(0.)
                 for col_id in schema.get_child_col_ids(table_num):
-                    input_q += " * " + schema.get_col_name(col_id)
+                    input_q += schema.get_col_name(col_id)
                     new_fin_len = len(self.bert_tokenizer.tokenize(input_q))
-                    entity_ranges.append([fin_len, new_fin_len])
+                    col_ranges.append([fin_len, new_fin_len])
                     fin_len = new_fin_len
-                    if col_id in select_cols[b]:
-                        label.append(1.)
-                    else:
-                        label.append(0.)
-            while len(label) < max_label_num:
-                label.append(0.)
-
-            label = torch.from_numpy(np.array(label)).float()
 
             tokenozed_one_q = self.bert_tokenizer.tokenize(input_q)
-            indexed_one_q = self.bert_tokenizer.convert_tokens_to_ids(tokenozed_one_q)
-            if len(indexed_one_q) > 512:
+            if len(tokenozed_one_q) > 512:
                 continue
+            indexed_one_q = self.bert_tokenizer.convert_tokens_to_ids(tokenozed_one_q)
             input_qs.append(input_q)
             q_embs.append(indexed_one_q)
             q_len.append(len(indexed_one_q))
-            q_q_len.append(one_q_q_len)
-            labels.append(label)
-            topk_labels.append(select_cols_num[b])
-            entity_ranges_list.append(entity_ranges)
-            hint_tensors_list.append(hint_tensors)
+            parse_trees.append(trees[b])
+            q_ranges_list.append(q_ranges)
+            if len(q_ranges) != len(trees[b].leaves()):
+                print(trees[b])
+                print(len(trees[b].leaves()))
+                print(one_q)
+                print(len(q_ranges))
+            assert len(q_ranges) == len(trees[b].leaves())
+            table_ranges_list.append(table_ranges)
+            column_ranges_list.append(col_ranges)
+            new_ontologies.append(ontologies[b])
             new_schemas.append(schemas[b])
-            new_sqls.append(sqls[b])
-        if not labels:
-            return None, None, None, None, None, None, None, None, None, None
-        labels = torch.stack(labels)
-        topk_labels = torch.tensor(topk_labels)
-        if torch.cuda.is_available():
-            labels = labels.cuda()
-            topk_labels = topk_labels.cuda()
+            new_query.append(sqls[b])
+            new_q_seqs.append(one_q)
 
         max_len = max(q_len)
         for tokenized_one_q in q_embs:
             tokenized_one_q += [0] * (max_len - len(tokenized_one_q))
         q_embs = torch.LongTensor(q_embs)
         if self.gpu:
-            q_embs = q_embs.cuda()
+            q_embs = q_embs.cuda(0)
 
-        return q_embs, q_len, q_q_len, labels, topk_labels, entity_ranges_list, hint_tensors_list, input_qs, new_schemas, new_sqls
+        return q_embs, q_len, q_ranges_list, table_ranges_list, column_ranges_list, new_schemas, parse_trees, new_ontologies, new_q_seqs, new_query
 
     def gen_bert_batch_with_table(self, q, schemas: List[Schema], labels: List[Ontology], matching_conts):
         tokenized_q = []
@@ -482,8 +465,8 @@ class WordEmbedding(nn.Module):
         tokenized_q = torch.LongTensor(tokenized_q)
         anses = torch.tensor(anses)
         if self.gpu:
-            tokenized_q = tokenized_q.cuda()
-            anses = anses.cuda()
+            tokenized_q = tokenized_q.cuda(0)
+            anses = anses.cuda(0)
         return tokenized_q, q_len, q_q_len, anses, input_qs, entity_ranges, hint_tensors
 
     def gen_bert_for_eval(self, one_q, schema: Schema, label: Ontology, matching_conts):
@@ -527,7 +510,7 @@ class WordEmbedding(nn.Module):
             tokenized_one_q += [0] * (max_len - len(tokenized_one_q))
         tokenized_q = torch.LongTensor(tokenized_q)
         if self.gpu:
-            tokenized_q = tokenized_q.cuda()
+            tokenized_q = tokenized_q.cuda(0)
         return tokenized_q, q_len, q_q_len, ontology_lists, input_qs, entity_ranges, hint_tensors
 
     def gen_word_list_embedding(self,words,B):
@@ -542,7 +525,7 @@ class WordEmbedding(nn.Module):
                 val_emb_array[b,i,:] = emb
         val_inp = torch.from_numpy(val_emb_array)
         if self.gpu:
-            val_inp = val_inp.cuda()
+            val_inp = val_inp.cuda(0)
         val_inp_var = Variable(val_inp)
         return val_inp_var
 
@@ -565,7 +548,7 @@ class WordEmbedding(nn.Module):
                 val_emb_array[i, t, :] = val_embs[i][t]
         val_inp = torch.from_numpy(val_emb_array)
         if self.gpu:
-            val_inp = val_inp.cuda()
+            val_inp = val_inp.cuda(0)
         val_inp_var = Variable(val_inp)
 
         return val_inp_var, val_len

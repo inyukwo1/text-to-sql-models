@@ -39,7 +39,7 @@ def table_to_dgl_graph(par_tab_nums, foreign_keys, col_enc, tab_enc):
 
     edge_types = torch.from_numpy(np.array(edge_types))
     if torch.cuda.is_available():
-        edge_types = edge_types.cuda()
+        edge_types = edge_types.cuda(0)
     g.edata.update({'rel_type': edge_types})
     g.ndata['h'] = torch.cat((tab_enc[:col_id_offset], col_enc[:len(par_tab_nums)]))
     return g
@@ -130,7 +130,7 @@ class SchemaEncoder(nn.Module):
             tensor_len, hidden_dim = list(tensor.size())
             padding = Variable(torch.zeros(goal_size - tensor_len, hidden_dim))
             if torch.cuda.is_available():
-                padding = padding.cuda()
+                padding = padding.cuda(0)
             return torch.cat((tensor, padding), 0)
         origin_batch_col_enc, _ = col_tab_name_encode(col_emb_var, col_name_len, col_len, self.col_lstm)
         origin_batch_tab_enc, _ = col_tab_name_encode(table_emb_var, table_name_len, table_len, self.col_lstm)

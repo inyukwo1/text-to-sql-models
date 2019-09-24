@@ -58,7 +58,7 @@ class ColPredictor(nn.Module):
         self.bce_logit = nn.BCEWithLogitsLoss()
         self.sigm = nn.Sigmoid()
         if self.gpu:
-            self.cuda()
+            self.cuda(0)
 
     def forward(self, input_data):
         q_emb_var, q_len, hs_emb_var, hs_len, col_emb_var, col_len, col_name_len = input_data[0:7]
@@ -113,7 +113,7 @@ class ColPredictor(nn.Module):
         truth_num = [len(t) - 1 for t in truth] # double check truth format and for test cases
         data = torch.from_numpy(np.array(truth_num))
         if self.gpu:
-            data = data.cuda()
+            data = data.cuda(0)
         truth_num_var = Variable(data)
 
         loss += self.CE(col_num_score, truth_num_var)
@@ -131,7 +131,7 @@ class ColPredictor(nn.Module):
             truth_prob[b][gold_l] = 1
         data = torch.from_numpy(truth_prob)
         if self.gpu:
-            data = data.cuda()
+            data = data.cuda(0)
         truth_var = Variable(data)
         #loss += self.mlsml(col_score, truth_var)
         #loss += self.bce_logit(col_score, truth_var) # double check no sigmoid

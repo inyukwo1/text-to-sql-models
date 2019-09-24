@@ -46,7 +46,7 @@ class FromPredictor(nn.Module):
         if self.onefrom:
             self.onefrom_vec = nn.Parameter(torch.zeros(self.N_h))
         if self.gpu:
-            self.cuda()
+            self.cuda(0)
 
     def load_model(self):
         if self.toy:

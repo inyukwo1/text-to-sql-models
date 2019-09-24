@@ -51,7 +51,7 @@ class DesAscLimitPredictor(nn.Module):
         self.bce_logit = nn.BCEWithLogitsLoss()
         self.sigm = nn.Sigmoid()
         if self.gpu:
-            self.cuda()
+            self.cuda(0)
 
     def forward(self, input_data):
         q_emb_var, q_len, hs_emb_var, hs_len, col_emb_var, col_len, col_name_len, gt_col = input_data
@@ -84,7 +84,7 @@ class DesAscLimitPredictor(nn.Module):
         loss = 0
         data = torch.from_numpy(np.array(truth))
         if self.gpu:
-            data = data.cuda()
+            data = data.cuda(0)
         truth_var = Variable(data)
         loss = self.CE(score, truth_var)
 

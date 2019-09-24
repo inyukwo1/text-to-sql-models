@@ -47,7 +47,7 @@ class AndOrPredictor(nn.Module):
         self.bce_logit = nn.BCEWithLogitsLoss()
         self.sigm = nn.Sigmoid()
         if self.gpu:
-            self.cuda()
+            self.cuda(0)
 
     def forward(self, input_data):
         q_emb_var, q_len, hs_emb_var, hs_len = input_data
@@ -65,7 +65,7 @@ class AndOrPredictor(nn.Module):
         att_np_q = np.ones((B, max_q_len))
         att_val_q = torch.from_numpy(att_np_q).float()
         if self.gpu:
-            att_val_q = att_val_q.cuda()
+            att_val_q = att_val_q.cuda(0)
         att_val_q = Variable(att_val_q)
         for idx, num in enumerate(q_len):
             if num < max_q_len:
@@ -77,7 +77,7 @@ class AndOrPredictor(nn.Module):
         att_np_h = np.ones((B, max_hs_len))
         att_val_h = torch.from_numpy(att_np_h).float()
         if self.gpu:
-            att_val_h = att_val_h.cuda()
+            att_val_h = att_val_h.cuda(0)
         att_val_h = Variable(att_val_h)
         for idx, num in enumerate(hs_len):
             if num < max_hs_len:
@@ -92,7 +92,7 @@ class AndOrPredictor(nn.Module):
     def loss(self, score, truth):
         loss = 0
         data = torch.from_numpy(np.array(truth))
-        truth_var = Variable(data.cuda())
+        truth_var = Variable(data.cuda(0))
         loss = self.CE(score, truth_var)
 
         return loss

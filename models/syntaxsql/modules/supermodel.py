@@ -157,7 +157,7 @@ class SuperModel(nn.Module):
         self.bce_logit = nn.BCEWithLogitsLoss()
         self.sigm = nn.Sigmoid()
         if self.gpu:
-            self.cuda()
+            self.cuda(0)
         self.path_not_found = 0
 
     def load_model(self):

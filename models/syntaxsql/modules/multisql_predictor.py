@@ -55,7 +55,7 @@ class MultiSqlPredictor(nn.Module):
         self.sigm = nn.Sigmoid()
 
         if self.gpu:
-            self.cuda()
+            self.cuda(0)
 
     def forward(self, input_data):
         q_emb_var, q_len, hs_emb_var, hs_len, mkw_emb_var, mkw_len = input_data
@@ -87,7 +87,7 @@ class MultiSqlPredictor(nn.Module):
     def loss(self, score, truth):
         data = torch.from_numpy(np.array(truth))
         if self.gpu:
-            data = data.cuda()
+            data = data.cuda(0)
         truth_var = Variable(data)
         loss = self.CE(score, truth_var)
 

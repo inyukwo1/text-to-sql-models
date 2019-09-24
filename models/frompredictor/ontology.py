@@ -12,6 +12,9 @@ class Ontology:
     def __str__(self):
         return "ONTOLOGY:: [tables: {} cols: {}]".format(self.tables, self.cols)
 
+    def __eq__(self, other):
+        return self.tables == other.tables and self.cols == other.cols
+
     def import_from_sql(self, sql):
         def find_all_table_nums(sql):
             if isinstance(sql, list):
@@ -132,4 +135,66 @@ class Ontology:
                         hint[st:st + n_gram] = [1.] * n_gram
         return hint
 
+    def prune(self, schema: Schema):
+        # TODO - algorithm improvement
+        def find_one_path(tab_id1, tab_id2):
+            neighbor_1 = []
 
+            for neighbor in schema.get_neighbor_table_ids(tab_id1):
+                if tab_id2 == neighbor:
+                    fps = schema.get_foreign_primary_keys_with_two_tables(tab_id1, neighbor)
+                    if len(fps) == 1:
+                        return set(), {fps[0][0], fps[0][1]}
+                    else:
+                        return set(), set()
+                fps = schema.get_foreign_primary_keys_with_two_tables(tab_id1, neighbor)
+                if len(fps) == 1:
+                    neighbor_1.append((fps, neighbor))
+            for fps, neighbor in neighbor_1:
+                for twohop_neighbor in schema.get_neighbor_table_ids(neighbor):
+                    if tab_id2 == twohop_neighbor:
+                        fps_2 = schema.get_foreign_primary_keys_with_two_tables(neighbor, twohop_neighbor)
+                        if len(fps_2) == 1:
+                            return {neighbor}, {fps[0][0], fps[0][1], fps_2[0][0], fps_2[0][1]}
+                        else:
+                            return set(), set()
+
+            return set(), set()
+
+
+        def connected_some_table_with_a_primary_key(tab_id):
+            for col_id in schema.get_child_col_ids(tab_id):
+                if col_id in self.cols and not schema.is_primary_key(col_id):
+                    return False
+            return True
+
+        prune_col_ids = set()
+        prune_tab_ids = set()
+        # parent tables
+        for col_id in self.cols:
+            prune_tab_ids.add(schema.get_parent_table_id(col_id))
+        self.tables |= prune_tab_ids
+
+        # if not connected and path is only one
+        for src_tab_id in self.tables:
+            for dst_tab_id in self.tables:
+                if src_tab_id == dst_tab_id:
+                    continue
+                tab_ids, col_ids = find_one_path(src_tab_id, dst_tab_id)
+                for tab_id in tab_ids:
+                    if tab_id not in self.tables:
+                        prune_tab_ids.add(tab_id)
+                for col_id in col_ids:
+                    if col_id not in self.cols:
+                        prune_col_ids.add(col_id)
+        self.tables |= prune_tab_ids
+        self.cols |= prune_col_ids
+
+        delete_primary_tabs = set()
+        # if table are only connected via its primary key
+        for tab_id in self.tables:
+            if connected_some_table_with_a_primary_key(tab_id):
+                delete_primary_tabs.add(tab_id)
+        self.tables -= delete_primary_tabs
+        prune_tab_ids |= delete_primary_tabs
+        return prune_tab_ids, prune_col_ids

@@ -20,6 +20,15 @@ class Schema:
         self._col_contents = OrderedDict()
         self._lemmatizer = WordNetLemmatizer()
 
+    def __str__(self):
+        str = ""
+        for i in self._table_names:
+            str += "Table {}: {}\n".format(i, self._table_names[i])
+            for j in self._col_names:
+                if self.get_parent_table_id(j) == i:
+                    str += "    {}: {}\n".format(j, self._col_names[j])
+        return str
+
     def import_from_spider(self, spider_schema):
         self.db_id = spider_schema["db_id"]
         for tab_num, tab_name in enumerate(spider_schema["table_names"]):
@@ -56,6 +65,9 @@ class Schema:
                         self._col_contents[col_id].add(content)
                 except:
                     continue
+
+    def col_num_except_star(self):
+        return len(self._col_names)
 
     def col_num(self):
         return len(self._col_names) + 1

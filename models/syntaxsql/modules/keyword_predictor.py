@@ -60,7 +60,7 @@ class KeyWordPredictor(nn.Module):
         self.bce_logit = nn.BCEWithLogitsLoss()
         self.sigm = nn.Sigmoid()
         if self.gpu:
-            self.cuda()
+            self.cuda(0)
 
     def forward(self, input_data):
         q_emb_var, q_len, hs_emb_var, hs_len, kw_emb_var, kw_len = input_data
@@ -102,7 +102,7 @@ class KeyWordPredictor(nn.Module):
         truth_num = [len(t) for t in truth] # double check to exclude select
         data = torch.from_numpy(np.array(truth_num))
         if self.gpu:
-            data = data.cuda()
+            data = data.cuda(0)
         truth_num_var = Variable(data)
         loss += self.CE(kw_num_score, truth_num_var)
         #loss for the key words
@@ -112,7 +112,7 @@ class KeyWordPredictor(nn.Module):
             truth_prob[b][truth[b]] = 1
         data = torch.from_numpy(truth_prob)
         if self.gpu:
-            data = data.cuda()
+            data = data.cuda(0)
         truth_var = Variable(data)
         #loss += self.mlsml(kw_score, truth_var)
         #loss += self.bce_logit(kw_score, truth_var) # double check no sigmoid for kw

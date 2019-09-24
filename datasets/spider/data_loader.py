@@ -6,6 +6,10 @@ from datasets.schema import Schema
 from datasets.sql import *
 from models.frompredictor.ontology import Ontology
 from commons.process_sql import data_entry_to_sql
+import pickle
+import torch
+import nltk
+
 
 WHERE_OPS = ('not', 'between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'exists')
 UNIT_OPS = ('none', '-', '+', "*", '/')
@@ -31,6 +35,8 @@ class DataLoader():
         self._train_path = os.path.join(self._data_path, 'train_type.json')
         self._dev_path = os.path.join(self._data_path, 'dev_type.json')
         self._test_path = os.path.join(self._data_path, 'dev_type.json')
+        self.train_parse_path = os.path.join(self._data_path, 'train_parse.pkl')
+        self.dev_parse_path = os.path.join(self._data_path, 'dev_parse.pkl')
         self._init()
 
     def _init(self):
@@ -52,7 +58,7 @@ class DataLoader():
         for i in tqdm.tqdm(range(0, data_len, self.batch_size)):
             yield(data[i:min(i+self.batch_size, data_len)])
 
-    def _load(self, path, load_option=None):
+    def _load(self, path, parse_path, load_option=None):
         if load_option:
             root, history, train_dev, component = load_option
             return json.load(open(os.path.join(self._data_path, "{}/{}_{}_{}_dataset.json".format(root, history, train_dev, component))))
@@ -60,8 +66,23 @@ class DataLoader():
         sql_list = []
         with open(path, encoding='utf-8') as f:
             data = json.load(f)
+        if os.path.exists(parse_path):
+            print("parsing data loading from {}".format(parse_path))
+            with open(parse_path, 'rb') as f:
+                parsetree_data = pickle.load(f)
+                parsetree_exist = True
+                parser = None
+        else:
+            parsetree_data = []
+            parsetree_exist = False
+            if torch.cuda.is_available():
+                import benepar
+                parser = benepar.Parser("benepar_en2_large")
+            else:
+                import benepar
+                parser = benepar.Parser("benepar_en2")
 
-        for item in tqdm.tqdm(data):
+        for item_idx, item in tqdm.tqdm(enumerate(data)):
             sql_tmp = {}
             schema = self.schemas[item['db_id']]
             db = self.dbs[item['db_id']]
@@ -221,8 +242,18 @@ class DataLoader():
                         if schema.has_content(col_id, w):
                             matching_conts[col_id].append(w)
             sql_tmp["matching_conts"] = matching_conts
+            if parsetree_exist:
+                sql_tmp['parsetree'] = parsetree_data[item_idx]
+            else:
+                tree = parser.parse(item["question"])
+                sql_tmp["parsetree"] = tree
+                parsetree_data.append(tree)
+            sql_tmp["nltk_question_toks"] = nltk.word_tokenize(item["question"])
 
             sql_list.append(sql_tmp)
+        if not parsetree_exist:
+            with open(parse_path, "wb") as f:
+                pickle.dump(parsetree_data, f)
         return sql_list
 
 
@@ -240,20 +271,20 @@ class DataLoader():
     def get_train_len(self):
         return len(self.train_data)
 
+    def get_eval_len(self):
+        return len(self.dev_data)
+
     def get_eval(self):
         return self._get(self.dev_data) if self.dev_data else self._get(self.test_data)
-
-    def get_eval_len(self):
-        return len(self.dev_data) if self.dev_data else len(self.test_data)
 
     def load_data(self, type, load_option=None):
         print('Loading {} data'.format(type))
         if type == 'test':
-            self.test_data = self._load(self._test_path, load_option)
+            self.test_data = self._load(self._test_path, self.dev_parse_path, load_option)
             self.eval_len = len(self.test_data)
         elif type == 'train':
-            self.train_data = self._load(self._train_path, load_option)
-            self.dev_data = self._load(self._dev_path, load_option)
+            self.train_data = self._load(self._train_path, self.train_parse_path, load_option)
+            self.dev_data = self._load(self._dev_path, self.dev_parse_path, load_option)
             self.train_len = len(self.train_data)
             self.eval_len = len(self.dev_data)
         else:

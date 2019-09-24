@@ -74,7 +74,7 @@ class GroupGenerator(nn.Module):
         if self.onefrom:
             self.onefrom_vec = nn.Parameter(torch.zeros(self.N_h))
         if self.gpu:
-            self.cuda()
+            self.cuda(0)
 
     def load_model(self):
         if self.toy:
@@ -132,7 +132,7 @@ class GroupGenerator(nn.Module):
                 if entity_range[1] - entity_range[0] - 1 < max_entity_range_len:
                     padding = torch.zeros(max_entity_range_len - (entity_range[1] - entity_range[0] - 1), self.encoded_num)
                     if self.gpu:
-                        padding = padding.cuda()
+                        padding = padding.cuda(0)
                     entity_tensor = torch.cat((entity_tensor, padding), dim=0)
                 entity_tensors.append(entity_tensor)
             entity_tensors = torch.stack(entity_tensors)
@@ -172,7 +172,7 @@ class GroupGenerator(nn.Module):
             if max_entities > cur_entity_len:
                 padding = torch.zeros((max_entities - cur_entity_len, self.encoded_num))
                 if self.gpu:
-                    padding = padding.cuda()
+                    padding = padding.cuda(0)
                 encoded_entity = torch.cat((encoded_entity, padding), dim=0)
             # co_attention = torch.mm(question_vectors, self.entity_attention(encoded_entity).transpose(0, 1))
             # co_attention = torch.softmax(co_attention, dim=1)

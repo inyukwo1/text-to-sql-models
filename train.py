@@ -1,11 +1,23 @@
 import os
 import json
 import torch
+import torch.nn
 import argparse
 import datetime
-from commons.utils import train, eval
+from commons.utils import train, eval, parallel_train
+import pyximport
+import tensorflow as tf
+import faulthandler; faulthandler.enable()
+import torch.nn.parallel.data_parallel
 
 if __name__ == '__main__':
+    if torch.cuda.is_available():
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        if gpus:
+            try:
+                tf.config.experimental.set_visible_devices(gpus[1], 'GPU')
+            except RuntimeError as e:
+                print(e)
     # Parse Arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default='', help='Model Name')
@@ -32,7 +44,7 @@ if __name__ == '__main__':
         from models.frompredictor.from_predictor import FromPredictor as Model
         H_PARAMS = json.loads(open('./models/frompredictor/{}'.format(args.param)).read())
     elif args.model_name == 'generator':
-        from models.frompredictor.generator import Generator as Model
+        from models.frompredictor.generator import GeneratorWrapper as Model
         H_PARAMS = json.loads(open('./models/frompredictor/{}'.format(args.param)).read())
     elif args.model_name == 'groupgenerator':
         from models.frompredictor.groupgenerator import GroupGenerator as Model
@@ -44,8 +56,12 @@ if __name__ == '__main__':
     if args.toy == True:
         H_PARAMS['toy'] = True
         H_PARAMS['gpu'] = False
+    else:
+        H_PARAMS['toy'] = False
+
     model = Model(H_PARAMS)
-    model.load_model()
+    # model.generator = torch.nn.DataParallel(model.generator)
+    # model.load_model()
 
     # Load DataLoader
     if args.data_name == 'spider':
@@ -59,20 +75,24 @@ if __name__ == '__main__':
     dataloader.load_data('train', load_option)
 
     # Prepare Optimizer
-    model.optimizer = torch.optim.Adam(model.parameters(), lr=H_PARAMS['lr'], weight_decay=H_PARAMS['weight_decay'])
+    model.optimizer = torch.optim.Adam(model.generator_params(), lr=H_PARAMS['lr'], weight_decay=H_PARAMS['weight_decay'])
+    model.bert_optimizer = torch.optim.Adam(model.bert_params(), lr=H_PARAMS['bert_lr'], weight_decay=H_PARAMS['weight_decay'])
 
     # Epoch
     for epoch in range(H_PARAMS['epoch']):
         print('Epoch {} @ {} '.format(epoch + 1, datetime.datetime.now()), end='')
         # Training
-        total_loss = train(model, dataloader)
+        # total_loss = train(model, dataloader)
+        total_loss = parallel_train(model, dataloader, 8)
         print('Loss: {}'.format(total_loss))
 
         # Evaluating
         if not epoch % H_PARAMS['eval_freq']:
             print('Evaluating...', end='')
-            total_acc = eval(model, dataloader)
+            dataloader.batch_size = 2
+            total_acc, total_loss = eval(model, dataloader)
+            dataloader.batch_size = H_PARAMS['batch_size']
             if not args.not_save:
                 # Save model if high acc
-                model.save_model(total_acc)
+                model.save_model(total_loss)
 

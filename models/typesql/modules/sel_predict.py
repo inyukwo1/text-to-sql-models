@@ -44,7 +44,7 @@ class SelPredictor(nn.Module):
         self.bce_logit = nn.BCEWithLogitsLoss()
         self.sigm = nn.Sigmoid()
         if gpu:
-            self.cuda()
+            self.cuda(0)
 
     def forward(self, q_emb_var, q_len, col_emb_var, col_len, x_type_emb_var, col_bitmap):
         max_q_len = max(q_len)

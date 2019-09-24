@@ -60,7 +60,7 @@ class AggPredictor(nn.Module):
         self.bce_logit = nn.BCEWithLogitsLoss()
         self.sigm = nn.Sigmoid()
         if self.gpu:
-            self.cuda()
+            self.cuda(0)
 
 
     def forward(self, input_data):
@@ -109,7 +109,7 @@ class AggPredictor(nn.Module):
         truth_num = [len(t) for t in truth] # double check truth format and for test cases
         data = torch.from_numpy(np.array(truth_num))
         if self.gpu:
-            data = data.cuda()
+            data = data.cuda(0)
         truth_num_var = Variable(data)
         loss += self.CE(agg_num_score, truth_num_var)
         #loss for the key words
@@ -119,7 +119,7 @@ class AggPredictor(nn.Module):
             truth_prob[b][truth[b]] = 1
         data = torch.from_numpy(truth_prob)
         if self.gpu:
-            data = data.cuda()
+            data = data.cuda(0)
         truth_var = Variable(data)
         #loss += self.mlsml(agg_score, truth_var)
         #loss += self.bce_logit(agg_score, truth_var) # double check no sigmoid

@@ -63,7 +63,7 @@ class SQLNet(nn.Module):
         self.bce_logit = nn.BCEWithLogitsLoss()
         self.sigm = nn.Sigmoid()
         if self.gpu:
-            self.cuda()
+            self.cuda(0)
 
     def _find_shortest_path(self, start, end, graph):
         stack = [[start, []]]
@@ -307,7 +307,7 @@ class SQLNet(nn.Module):
             # print gt_aggs_num
             data = torch.from_numpy(np.array(gt_aggs_num)) #supposed to be gt # of aggs
             if self.gpu:
-                agg_num_truth_var = Variable(data.cuda())
+                agg_num_truth_var = Variable(data.cuda(0))
             else:
                 agg_num_truth_var = Variable(data)
             agg_num_pred = agg_num_score[b, :truth_num[b][5]] # supposed to be gt # of select columns
@@ -332,7 +332,7 @@ class SQLNet(nn.Module):
                     truth_prob[col_counter][curr_sel_aggs] = 1
             data = torch.from_numpy(truth_prob)
             if self.gpu:
-                agg_op_truth_var = Variable(data.cuda())
+                agg_op_truth_var = Variable(data.cuda(0))
             else:
                 agg_op_truth_var = Variable(data)
             agg_op_prob = self.sigm(agg_op_score[b, :truth_num[b][5]])
@@ -345,7 +345,7 @@ class SQLNet(nn.Module):
         sel_num_truth = [*map(lambda x: x[5]-1, truth_num)] #might need to be the length of the set of columms
         data = torch.from_numpy(np.array(sel_num_truth))
         if self.gpu:
-            sel_num_truth_var = Variable(data.cuda())
+            sel_num_truth_var = Variable(data.cuda(0))
         else:
             sel_num_truth_var = Variable(data)
         loss += self.CE(sel_num_score, sel_num_truth_var)
@@ -356,7 +356,7 @@ class SQLNet(nn.Module):
             truth_prob[b][truth_num[b][1]] = 1
         data = torch.from_numpy(truth_prob)
         if self.gpu:
-            sel_col_truth_var = Variable(data.cuda())
+            sel_col_truth_var = Variable(data.cuda(0))
         else:
             sel_col_truth_var = Variable(data)
         sel_col_prob = self.sigm(sel_col_score)
@@ -371,7 +371,7 @@ class SQLNet(nn.Module):
         cond_num_truth = [*map(lambda x:x[2], truth_num)]
         data = torch.from_numpy(np.array(cond_num_truth))
         if self.gpu:
-            cond_num_truth_var = Variable(data.cuda())
+            cond_num_truth_var = Variable(data.cuda(0))
         else:
             cond_num_truth_var = Variable(data)
         loss += self.CE(cond_num_score, cond_num_truth_var)
@@ -383,7 +383,7 @@ class SQLNet(nn.Module):
                 truth_prob[b][list(truth_num[b][3])] = 1
         data = torch.from_numpy(truth_prob)
         if self.gpu:
-            cond_col_truth_var = Variable(data.cuda())
+            cond_col_truth_var = Variable(data.cuda(0))
         else:
             cond_col_truth_var = Variable(data)
 
@@ -398,7 +398,7 @@ class SQLNet(nn.Module):
                 continue
             data = torch.from_numpy(np.array(truth_num[b][4]))
             if self.gpu:
-                cond_op_truth_var = Variable(data.cuda())
+                cond_op_truth_var = Variable(data.cuda(0))
             else:
                 cond_op_truth_var = Variable(data)
             cond_op_pred = cond_op_score[b, :len(truth_num[b][4])]
@@ -412,7 +412,7 @@ class SQLNet(nn.Module):
         gby_num_truth = [*map(lambda x: x[7], truth_num)]
         data = torch.from_numpy(np.array(gby_num_truth))
         if self.gpu:
-            gby_num_truth_var = Variable(data.cuda())
+            gby_num_truth_var = Variable(data.cuda(0))
         else:
             gby_num_truth_var = Variable(data)
         loss += self.CE(gby_num_score, gby_num_truth_var)
@@ -424,7 +424,7 @@ class SQLNet(nn.Module):
                 truth_prob[b][list(truth_num[b][6])] = 1
         data = torch.from_numpy(truth_prob)
         if self.gpu:
-            gby_col_truth_var = Variable(data.cuda())
+            gby_col_truth_var = Variable(data.cuda(0))
         else:
             gby_col_truth_var = Variable(data)
         gby_col_prob = self.sigm(gby_score)
@@ -436,7 +436,7 @@ class SQLNet(nn.Module):
         having_truth = [1 if len(x[13]) == 1 else 0 for x in truth_num]
         data = torch.from_numpy(np.array(having_truth))
         if self.gpu:
-            having_truth_var = Variable(data.cuda())
+            having_truth_var = Variable(data.cuda(0))
         else:
             having_truth_var = Variable(data)
         loss += self.CE(hv_score, having_truth_var)
@@ -448,7 +448,7 @@ class SQLNet(nn.Module):
                 truth_prob[b][truth_num[b][13]] = 1
         data = torch.from_numpy(truth_prob)
         if self.gpu:
-            hv_col_truth_var = Variable(data.cuda())
+            hv_col_truth_var = Variable(data.cuda(0))
         else:
             hv_col_truth_var = Variable(data)
         hv_col_prob = self.sigm(hv_col_score)
@@ -464,7 +464,7 @@ class SQLNet(nn.Module):
                 truth_prob[b][truth_num[b][12]] = 1
         data = torch.from_numpy(truth_prob)
         if self.gpu:
-            hv_agg_truth_var = Variable(data.cuda())
+            hv_agg_truth_var = Variable(data.cuda(0))
         else:
             hv_agg_truth_var = Variable(data)
         hv_agg_prob = self.sigm(hv_agg_truth_var)
@@ -480,7 +480,7 @@ class SQLNet(nn.Module):
                 truth_prob[b][truth_num[b][14]] = 1
         data = torch.from_numpy(truth_prob)
         if self.gpu:
-            hv_op_truth_var = Variable(data.cuda())
+            hv_op_truth_var = Variable(data.cuda(0))
         else:
             hv_op_truth_var = Variable(data)
         hv_op_prob = self.sigm(hv_op_truth_var)
@@ -496,7 +496,7 @@ class SQLNet(nn.Module):
         ody_num_truth = [*map(lambda x: x[10], truth_num)]
         data = torch.from_numpy(np.array(ody_num_truth))
         if self.gpu:
-            ody_num_truth_var = Variable(data.cuda())
+            ody_num_truth_var = Variable(data.cuda(0))
         else:
             ody_num_truth_var = Variable(data)
         loss += self.CE(ody_num_score, ody_num_truth_var)
@@ -508,7 +508,7 @@ class SQLNet(nn.Module):
                 truth_prob[b][list(truth_num[b][9])] = 1
         data = torch.from_numpy(truth_prob)
         if self.gpu:
-            ody_col_truth_var = Variable(data.cuda())
+            ody_col_truth_var = Variable(data.cuda(0))
         else:
             ody_col_truth_var = Variable(data)
         ody_col_prob = self.sigm(ody_col_score)
@@ -524,7 +524,7 @@ class SQLNet(nn.Module):
                 truth_prob[b][list(truth_num[b][8])] = 1
         data = torch.from_numpy(truth_prob)
         if self.gpu:
-            ody_agg_truth_var = Variable(data.cuda())
+            ody_agg_truth_var = Variable(data.cuda(0))
         else:
             ody_agg_truth_var = Variable(data)
         ody_agg_prob = self.sigm(ody_agg_score)
@@ -536,7 +536,7 @@ class SQLNet(nn.Module):
         ody_par_truth = [*map(lambda x: x[11], truth_num)]
         data = torch.from_numpy(np.array(ody_par_truth))
         if self.gpu:
-            ody_par_truth_var = Variable(data.cuda())
+            ody_par_truth_var = Variable(data.cuda(0))
         else:
             ody_par_truth_var = Variable(data)
         loss += self.CE(ody_par_score, ody_par_truth_var)
