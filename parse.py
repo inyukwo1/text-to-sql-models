@@ -94,7 +94,7 @@ def parse_line(lines, idx, feature_name):
     return line.replace(feature_name, '')
 
 
-def parse_epoch(file_name, epoch, lines):
+def parse_epoch(file_name, sql, epoch, lines):
     node_list = []
     element_cnt = 1
     stack = []
@@ -102,12 +102,16 @@ def parse_epoch(file_name, epoch, lines):
     if 'Solution Action Id: 36' in lines or 'Solution Action Id: 37' in lines or 'Solution Action Id: 38' in lines:
         print('here')
     for idx in range(0, len(lines), 10):
-        node = {'epoch': epoch, 'file_name': file_name}
+        node = {'epoch': epoch, 'file_name': file_name, 'sql': sql}
 
         # Meta Info
         # Type
         line = parse_line(lines, idx, 'Type: ')
         node['type'] = line
+
+        line = parse_line(lines, idx, 'Solution: ')
+        solution = int(line)
+        node['solution'] = solution
 
         # Path Length:
         line = parse_line(lines, idx, 'Path History: ')
@@ -180,6 +184,8 @@ def parse_file(f_path):
     # Get All Beginning lines for epoch
     item_begin_lines = []
     for line_num, line in enumerate(lines):
+        if 'SQL: ' in line:
+            sql = line.split(':')[1]
         if 'Epoch: ' in line:
             line = line.replace('Epoch: ', '').strip('\n')
             epoch_num = int(line)
@@ -192,7 +198,7 @@ def parse_file(f_path):
         end_line_num = len(lines) if idx+1 == len(item_begin_lines) else item_begin_lines[idx+1][1]
         file_name = f_path.split('/')[-1]
         # Parse Epoch
-        node_list = parse_epoch(file_name, epoch_num, lines[begin_line_num:end_line_num])
+        node_list = parse_epoch(file_name, sql, epoch_num, lines[begin_line_num:end_line_num])
         all_nodes += node_list
 
     file.close()
@@ -281,6 +287,11 @@ def parse_log2json(log_path):
 
         dic_length = parse_list2dic(e_list, 'action_type_id', id2type, 'length_from_parent')
         dic_action_id = parse_list2dic(e_list, 'action_id', id2prod, 'path_length')
+        y = []
+        for x in e_list:
+            if x['action_id'] == 9 and x['correct'] == False:
+                y.append(x)
+
         dic_action_type_id = parse_list2dic(e_list, 'action_type_id', id2type, 'path_length')
 
         # Replace
@@ -334,7 +345,16 @@ if __name__ == '__main__':
     for idx, action_item in data.items():
         action = id_dic[int(idx)]
         print('\tAction: {}'.format(action))
+
+        total_acc_num = 0
+        total_num = 0
         for length, item in action_item.items():
+            total_acc_num += item['total'] * item['acc']
+            total_num += item['total']
             print('\t\t\tLength: {} Total:{} Acc:{}'.format(length, item['total'], item['acc']))
+        if total_num != 0:
+            print('\t total: {} acc: {} wrong_num: {}'.format(total_num, total_acc_num / total_num, total_num - total_acc_num))
+        else:
+            print('\t total: 0')
 
     print('\nDone..!')
