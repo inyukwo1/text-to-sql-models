@@ -46,6 +46,7 @@ class Example:
 
         self.sketch = list()
         if self.truth_actions:
+            '''
             # Get action indices from self.truth_actions
             action_indices = utils.seq2idx(self.truth_actions)
 
@@ -61,7 +62,11 @@ class Example:
                 if isinstance(ta, define_rule.C) or isinstance(ta, define_rule.T) or isinstance(ta, define_rule.A):
                     continue
                 self.sketch.append(ta)
-
+            '''
+            for ta in self.truth_actions:
+                if isinstance(ta, define_rule.C) or isinstance(ta, define_rule.T) or isinstance(ta, define_rule.A):
+                    continue
+                self.sketch.append(ta)
 
 
 class cached_property(object):
