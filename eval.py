@@ -43,10 +43,12 @@ def evaluate(args):
 
     json_datas = utils.epoch_acc(model, args.batch_size, val_sql_data, val_table_data,
                            beam_size=args.beam_size, log_path="log.txt")
+    print("dumpping!!!!!")
     # utils.eval_acc(json_datas, val_sql_data)
     import json
     with open('./predict_lf.json', 'w') as f:
-        json.dump(json_datas, f)
+        json.dump(json_datas, f, indent=4)
+        print("dumpped")
 
 if __name__ == '__main__':
     arg_parser = arg.init_arg_parser()

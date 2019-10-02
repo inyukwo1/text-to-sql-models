@@ -342,19 +342,29 @@ if __name__ == '__main__':
         exit(-1)
 
     print('Epoch: {}'.format(target_epoch))
+    total_num_sum = 0
+    total_acc_num_sum =0
     for idx, action_item in data.items():
         action = id_dic[int(idx)]
-        print('\tAction: {}'.format(action))
+        # print('\tAction: {} {}'.format(action, idx))
 
         total_acc_num = 0
         total_num = 0
         for length, item in action_item.items():
             total_acc_num += item['total'] * item['acc']
             total_num += item['total']
-            print('\t\t\tLength: {} Total:{} Acc:{}'.format(length, item['total'], item['acc']))
+            # print('\t\t\tLength: {} Total:{} Acc:{}'.format(length, item['total'], item['acc']))
         if total_num != 0:
-            print('\t total: {} acc: {} wrong_num: {}'.format(total_num, total_acc_num / total_num, total_num - total_acc_num))
+            print('{} {} {}'.format(total_num, total_acc_num / total_num, int(total_num - total_acc_num)))
         else:
-            print('\t total: 0')
+            print('- - -')
+
+        total_num_sum += total_num
+        total_acc_num_sum += total_acc_num
+        if int(idx) in {0, 6, 8, 28, 30, 35, 39, 45}:
+            print("{} {} {}".format(total_num_sum, total_acc_num_sum / total_num_sum, int(total_num_sum - total_acc_num_sum)))
+            total_acc_num_sum = 0
+            total_num_sum = 0
+
 
     print('\nDone..!')

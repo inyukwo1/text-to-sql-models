@@ -230,8 +230,6 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
     examples = []
 
     for i in range(st, ed):
-        if i == 161:
-            stop = 1
 
         sql = sql_data[idxes[i]]
         table = table_data[sql['db_id']]
@@ -320,7 +318,7 @@ def epoch_train(model, optimizer, batch_size, sql_data, table_data,
     return cum_loss / len(sql_data)
 
 
-def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3, log_path=None, epoch=None):
+def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3, log_path="./analysis", epoch=None):
     model.eval()
     perm = list(range(len(sql_data)))
     st = 0
@@ -333,8 +331,8 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3, log_path=Non
         #                                                is_train=False)
         for idx, example in enumerate(examples):
 
-            assert example.sql_json['question_arg'] == sql_data[st+idx]['question_arg'], "idx:{} {} || {}".format(st+idx, example.sql_json['question_arg'], sql_data[st+idx]['question_arg'])
-            assert example.sql == sql_data[st+idx]['query'], "idx:{} {} || {} ".format(st+idx, example.sql, sql_data[st+idx]['query'])
+            # assert example.sql_json['question_arg'] == sql_data[st+idx]['question_arg'], "idx:{} {} || {}".format(st+idx, example.sql_json['question_arg'], sql_data[st+idx]['question_arg'])
+            # assert example.sql == sql_data[st+idx]['query'], "idx:{} {} || {} ".format(st+idx, example.sql, sql_data[st+idx]['query'])
 
             # Get Log file
             file = get_log_file(log_path, example)
@@ -358,7 +356,7 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3, log_path=Non
 
             simple_json = example.sql_json['pre_sql']
 
-            simple_json['sketch_result'] =  " ".join(str(x) for x in results_all[1])
+            simple_json['sketch_result'] = " ".join(str(x) for x in results_all[1])
             simple_json['model_result'] = pred
 
             json_datas.append(simple_json)
@@ -366,10 +364,10 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3, log_path=Non
     return json_datas
 
 
-def eval_acc(preds, sqls):
+def eval_acc(preds):
     sketch_correct, best_correct = 0, 0
-    for i, (pred, sql) in enumerate(zip(preds, sqls)):
-        if pred['model_result'] == sql['rule_label']:
+    for i, pred in enumerate(preds):
+        if pred['model_result'] == pred['rule_label']:
             best_correct += 1
     print(best_correct / len(preds))
     return best_correct / len(preds)
