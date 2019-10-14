@@ -18,6 +18,9 @@ from src.models import nn_utils
 from src.models.basic_model import BasicModel
 from src.models.pointer_net import PointerNet
 from src.rule import semQL as define_rule
+from tree_lstm import Tree, BatchedTree, TreeLSTM
+from src.rule import lf
+from random import randint, sample
 
 
 class IRNet(BasicModel):
@@ -46,6 +49,8 @@ class IRNet(BasicModel):
         # input feeding
         # pre type embedding
 
+        self.hidden_size = args.hidden_size
+
         self.lf_decoder_lstm = nn.LSTMCell(input_dim, args.hidden_size)
 
         self.sketch_decoder_lstm = nn.LSTMCell(input_dim, args.hidden_size)
@@ -66,7 +71,7 @@ class IRNet(BasicModel):
         self.sketch_encoder = nn.LSTM(args.action_embed_size, args.action_embed_size // 2, bidirectional=True,
                                       batch_first=True)
 
-        self.production_embed = nn.Embedding(len(grammar.prod2id), args.action_embed_size)
+        self.production_embed = nn.Embedding(len(grammar.prod2id) + 1, args.action_embed_size)
         self.type_embed = nn.Embedding(len(grammar.type2id), args.type_embed_size)
         self.production_readout_b = nn.Parameter(torch.FloatTensor(len(grammar.prod2id)).zero_())
 
@@ -93,6 +98,16 @@ class IRNet(BasicModel):
 
         self.table_pointer_net = PointerNet(args.hidden_size, args.col_embed_size, attention_type=args.column_att)
 
+        self.tree_lstm = TreeLSTM(args.hidden_size, args.hidden_size, 0.3, 'n_ary', 5)
+
+        self.outer = nn.Sequential(
+            nn.Linear(args.hidden_size * 3, args.hidden_size),
+            nn.ReLU(),
+            nn.Linear(args.hidden_size, args.hidden_size),
+            nn.ReLU(),
+            nn.Linear(args.hidden_size, 1)
+        )
+
         # initial the embedding layers
         nn.init.xavier_normal_(self.production_embed.weight.data)
         nn.init.xavier_normal_(self.type_embed.weight.data)
@@ -111,92 +126,11 @@ class IRNet(BasicModel):
 
         src_encodings = self.dropout(src_encodings)
 
-        utterance_encodings_sketch_linear = self.att_sketch_linear(src_encodings)
-        utterance_encodings_lf_linear = self.att_lf_linear(src_encodings)
-
-        dec_init_vec = self.init_decoder_state(last_cell)
-        h_tm1 = dec_init_vec
-        action_probs = [[] for _ in examples]
-
-        zero_action_embed = Variable(self.new_tensor(args.action_embed_size).zero_())
-        zero_type_embed = Variable(self.new_tensor(args.type_embed_size).zero_())
-
-        sketch_attention_history = list()
-
-        for t in range(batch.max_sketch_num):
-            if t == 0:
-                x = Variable(self.new_tensor(len(batch), self.sketch_decoder_lstm.input_size).zero_(),
-                             requires_grad=False)
-            else:
-                a_tm1_embeds = []
-                pre_types = []
-                for e_id, example in enumerate(examples):
-
-                    if t < len(example.sketch):
-                        # get the last action
-                        # This is the action embedding
-                        action_tm1 = example.sketch[t - 1]
-                        if type(action_tm1) in [define_rule.Root1,
-                                                define_rule.Root,
-                                                define_rule.Sel,
-                                                define_rule.Filter,
-                                                define_rule.Sup,
-                                                define_rule.N,
-                                                define_rule.Order]:
-                            a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
-                        else:
-                            print(action_tm1, 'only for sketch')
-                            quit()
-                            a_tm1_embed = zero_action_embed
-                            pass
-                    else:
-                        a_tm1_embed = zero_action_embed
-
-                    a_tm1_embeds.append(a_tm1_embed)
-
-                a_tm1_embeds = torch.stack(a_tm1_embeds)
-                inputs = [a_tm1_embeds]
-
-                for e_id, example in enumerate(examples):
-                    if t < len(example.sketch):
-                        action_tm = example.sketch[t - 1]
-                        pre_type = self.type_embed.weight[self.grammar.type2id[type(action_tm)]]
-                    else:
-                        pre_type = zero_type_embed
-                    pre_types.append(pre_type)
-
-                pre_types = torch.stack(pre_types)
-
-                inputs.append(att_tm1)
-                inputs.append(pre_types)
-                x = torch.cat(inputs, dim=-1)
-
-            src_mask = batch.src_token_mask
-
-            (h_t, cell_t), att_t, aw = self.step(x, h_tm1, src_encodings,
-                                                 utterance_encodings_sketch_linear, self.sketch_decoder_lstm,
-                                                 self.sketch_att_vec_linear,
-                                                 src_token_mask=src_mask, return_att_weight=True)
-            sketch_attention_history.append(att_t)
-
-            # get the Root possibility
-            apply_rule_prob = F.softmax(self.production_readout(att_t), dim=-1)
-
-            for e_id, example in enumerate(examples):
-                if t < len(example.sketch):
-                    action_t = example.sketch[t]
-                    act_prob_t_i = apply_rule_prob[e_id, self.grammar.prod2id[action_t.production]]
-                    action_probs[e_id].append(act_prob_t_i)
-
-            h_tm1 = (h_t, cell_t)
-            att_tm1 = att_t
-
-        sketch_prob_var = torch.stack(
-            [torch.stack(action_probs_i, dim=0).log().sum() for action_probs_i in action_probs], dim=0)
 
         table_embedding = self.gen_x_batch(batch.table_sents)
         src_embedding = self.gen_x_batch(batch.src_sents)
         schema_embedding = self.gen_x_batch(batch.table_names)
+
 
         # get emb differ
         embedding_differ = self.embedding_cosine(src_embedding=src_embedding, table_embedding=table_embedding,
@@ -219,131 +153,144 @@ class IRNet(BasicModel):
 
         table_embedding = table_embedding + col_type_var
 
-        batch_table_dict = batch.col_table_dict
-        table_enable = np.zeros(shape=(len(examples)))
-        action_probs = [[] for _ in examples]
+        # TODO attention
 
-        h_tm1 = dec_init_vec
+        batched_tree, gold = self.batch_to_punked_trees(batch, table_embedding, schema_embedding)
+        encoded_tree = self.tree_lstm(batched_tree).get_hidden_state()
 
-        for t in range(batch.max_action_num):
-            if t == 0:
-                # x = self.lf_begin_vec.unsqueeze(0).repeat(len(batch), 1)
-                x = Variable(self.new_tensor(len(batch), self.lf_decoder_lstm.input_size).zero_(), requires_grad=False)
-            else:
-                a_tm1_embeds = []
-                pre_types = []
+        mix1 = encoded_tree - last_state
+        mix2 = encoded_tree * last_state
+        mix3 = mix1.abs()
 
-                for e_id, example in enumerate(examples):
-                    if t < len(example.tgt_actions):
-                        action_tm1 = example.tgt_actions[t - 1]
-                        if type(action_tm1) in [define_rule.Root1,
-                                                define_rule.Root,
-                                                define_rule.Sel,
-                                                define_rule.Filter,
-                                                define_rule.Sup,
-                                                define_rule.N,
-                                                define_rule.Order,
-                                                ]:
+        mix = torch.cat((mix1, mix2, mix3), dim=-1)
+        out = self.outer(mix).squeeze()
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(out, gold)
 
-                            a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
+        return loss
 
+    def batch_to_punked_trees(self, batch: Batch, col_embeddings, tab_embeddings):
+        def punk_tree(self, root, col_embeddings, tab_embeddings):
+            tree = Tree(self.hidden_size)
+            def traverse_1(self, node):
+                node.punk = False
+                node_num = 0
+                for child in node.children:
+                    node_num += traverse_1(self, child)
+                return node_num
+
+            node_num = traverse_1(self, root)
+
+            punk_num = randint(0, node_num)
+            selected_punks = sample(range(node_num), punk_num)
+
+            def traverse_2(self, parent, node, node_id, selected_punks):
+                new_parent = node
+                if node_id in selected_punks:
+                    node.punk = True
+                    if parent and parent.punk:
+                        parent.children.remove(node)
+                        parent.children += node.children
+                        new_parent = parent
+
+                node_id += 1
+                for child in node.children:
+                    node_id = traverse_2(self, new_parent, child, node_id, selected_punks)
+                return node_id
+            traverse_2(self, None, root, 0, selected_punks)
+
+            def traverse_3(self, node, id):
+                for child in node.children:
+                    if child.punk:
+                        new_id = tree.add_node(parent_id=id, tensor=self.production_embed.weight[-1])
+                    else:
+                        if isinstance(child, define_rule.C):
+                            new_id = tree.add_node(parent_id=id, tensor=col_embeddings[child.id_c])
+                        elif isinstance(child, define_rule.T):
+                            new_id = tree.add_node(parent_id=id, tensor=tab_embeddings[child.id_c])
                         else:
-                            if isinstance(action_tm1, define_rule.C):
-                                a_tm1_embed = self.column_rnn_input(table_embedding[e_id, action_tm1.id_c])
-                            elif isinstance(action_tm1, define_rule.T):
-                                a_tm1_embed = self.column_rnn_input(schema_embedding[e_id, action_tm1.id_c])
-                            elif isinstance(action_tm1, define_rule.A):
-                                a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
-                            else:
-                                print(action_tm1, 'not implement')
-                                quit()
-                                a_tm1_embed = zero_action_embed
-                                pass
-
-                    else:
-                        a_tm1_embed = zero_action_embed
-                    a_tm1_embeds.append(a_tm1_embed)
-
-                a_tm1_embeds = torch.stack(a_tm1_embeds)
-
-                inputs = [a_tm1_embeds]
-
-                # tgt t-1 action type
-                for e_id, example in enumerate(examples):
-                    if t < len(example.tgt_actions):
-                        action_tm = example.tgt_actions[t - 1]
-                        pre_type = self.type_embed.weight[self.grammar.type2id[type(action_tm)]]
-                    else:
-                        pre_type = zero_type_embed
-                    pre_types.append(pre_type)
-
-                pre_types = torch.stack(pre_types)
-
-                inputs.append(att_tm1)
-
-                inputs.append(pre_types)
-
-                x = torch.cat(inputs, dim=-1)
-
-            src_mask = batch.src_token_mask
-
-            (h_t, cell_t), att_t, aw = self.step(x, h_tm1, src_encodings,
-                                                 utterance_encodings_lf_linear, self.lf_decoder_lstm,
-                                                 self.lf_att_vec_linear,
-                                                 src_token_mask=src_mask, return_att_weight=True)
-
-            apply_rule_prob = F.softmax(self.production_readout(att_t), dim=-1)
-            table_appear_mask_val = torch.from_numpy(table_appear_mask)
-            if self.cuda:
-                table_appear_mask_val = table_appear_mask_val.cuda()
-
-            if self.use_column_pointer:
-                gate = F.sigmoid(self.prob_att(att_t))
-                weights = self.column_pointer_net(src_encodings=table_embedding, query_vec=att_t.unsqueeze(0),
-                                                  src_token_mask=None) * table_appear_mask_val * gate + self.column_pointer_net(
-                    src_encodings=table_embedding, query_vec=att_t.unsqueeze(0),
-                    src_token_mask=None) * (1 - table_appear_mask_val) * (1 - gate)
+                            new_id = tree.add_node(parent_id=id, tensor=self.production_embed.weight[self.grammar.prod2id[child.production]])
+                    traverse_3(self, child, new_id)
+            if root.punk:
+                root_id = tree.add_node(parent_id=None, tensor=self.type_embed.weight[-1])
             else:
-                weights = self.column_pointer_net(src_encodings=table_embedding, query_vec=att_t.unsqueeze(0),
-                                                  src_token_mask=batch.table_token_mask)
+                root_id = tree.add_node(parent_id=None, tensor=self.type_embed.weight[self.grammar.prod2id[root.production]])
+            traverse_3(self, root, root_id)
+            return tree
 
-            weights.data.masked_fill_(batch.table_token_mask, -float('inf'))
+        def example_to_punked_tree(self, example, col_embeddings, tab_embeddings):
+            root = lf.build_tree(example.truth_actions)
+            return punk_tree(self, root, col_embeddings, tab_embeddings)
 
-            column_attention_weights = F.softmax(weights, dim=-1)
+        def make_random_negative_tree(self, example, col_embeddings, tab_embeddings):
+            # TODO consider - do we have to make similar negatives?
+            root = define_rule.Root1(id_c=randint(4))
+            def random_make_tree(node):
+                for action in node.get_next_action():
 
-            table_weights = self.table_pointer_net(src_encodings=schema_embedding, query_vec=att_t.unsqueeze(0),
-                                                   src_token_mask=None)
-
-            schema_token_mask = batch.schema_token_mask.expand_as(table_weights)
-            table_weights.data.masked_fill_(schema_token_mask, -float('inf'))
-            table_dict = [batch_table_dict[x_id][int(x)] for x_id, x in enumerate(table_enable.tolist())]
-            table_mask = batch.table_dict_mask(table_dict)
-            table_weights.data.masked_fill_(table_mask, -float('inf'))
-
-            table_weights = F.softmax(table_weights, dim=-1)
-            # now get the loss
-            for e_id, example in enumerate(examples):
-                if t < len(example.tgt_actions):
-                    action_t = example.tgt_actions[t]
-                    if isinstance(action_t, define_rule.C):
-                        table_appear_mask[e_id, action_t.id_c] = 1
-                        table_enable[e_id] = action_t.id_c
-                        act_prob_t_i = column_attention_weights[e_id, action_t.id_c]
-                        action_probs[e_id].append(act_prob_t_i)
-                    elif isinstance(action_t, define_rule.T):
-                        act_prob_t_i = table_weights[e_id, action_t.id_c]
-                        action_probs[e_id].append(act_prob_t_i)
-                    elif isinstance(action_t, define_rule.A):
-                        act_prob_t_i = apply_rule_prob[e_id, self.grammar.prod2id[action_t.production]]
-                        action_probs[e_id].append(act_prob_t_i)
+                    if action == define_rule.Root1:
+                        max_c = 4
+                    elif action == define_rule.Root:
+                        max_c = 6
+                    elif action == define_rule.N:
+                        max_c = 5
+                    elif action == define_rule.C:
+                        max_c = len(example.cols)
+                    elif action == define_rule.T:
+                        max_c = len(example.tab_ids)
+                    elif action == define_rule.A:
+                        max_c = 6
+                    elif action == define_rule.Sel:
+                        max_c = 1
+                    elif action == define_rule.Filter:
+                        max_c = 20
+                    elif action == define_rule.Sup:
+                        max_c = 2
+                    elif action == define_rule.Order:
+                        max_c = 2
                     else:
-                        pass
-            h_tm1 = (h_t, cell_t)
-            att_tm1 = att_t
-        lf_prob_var = torch.stack(
-            [torch.stack(action_probs_i, dim=0).log().sum() for action_probs_i in action_probs], dim=0)
+                        assert False
 
-        return [sketch_prob_var, lf_prob_var]
+                    new_action = action(randint(max_c), parent=node)
+                    root.add_children(new_action)
+                    random_make_tree(new_action)
+            random_make_tree(root)
+            # TODO more accurate check if new tree is same with original tree
+            origin_root = lf.build_tree(example.truth_actions)
+            origin_actions = []
+            def gather_action(origin_actions, origin_root):
+                origin_actions.append(origin_root.production)
+                for child in origin_root.children:
+                    gather_action(origin_actions, child)
+            gather_action(origin_actions, origin_root)
+            def check_if_exists(origin_actions, root):
+                if not root.punk and root.production not in origin_actions:
+                    return True
+                for child in root.children:
+                    if check_if_exists(origin_actions, child):
+                        return True
+                return False
+            if check_if_exists(origin_actions, root):
+                return punk_tree(self, root, col_embeddings, tab_embeddings)
+            return None
+
+
+        gold = []
+        trees = []
+        for b in range(len(batch)):
+            if randint(0, 100) < 50:
+                tree = example_to_punked_tree(self, batch.examples[b], col_embeddings[b], tab_embeddings[b])
+                gold.append(1.)
+            else:
+                tree = None
+                while tree is None:
+                    tree = make_random_negative_tree(self, batch.examples[b], col_embeddings[b], tab_embeddings[b])
+                gold.append(0.)
+            trees.append(tree)
+
+        gold = torch.Tensor(gold)
+        if torch.cuda.is_available():
+            gold = gold.cuda()
+        return BatchedTree(trees), gold
 
     def parse(self, examples, beam_size=5):
         """

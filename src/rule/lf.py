@@ -148,6 +148,7 @@ def build_tree(lf):
         root.add_children(root_1)
         root_1.set_parent(root)
     verify(root)
+    return root
     # eliminate_parent(root)
 
 

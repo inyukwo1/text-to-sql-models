@@ -12,6 +12,8 @@ import random
 import src.rule.semQL as define_rule
 from src.models import nn_utils
 from src import utils
+from tree_lstm import Tree, BatchedTree
+
 
 class Example:
     """
@@ -93,8 +95,11 @@ class Batch(object):
         self.examples = examples
 
         if examples[0].tgt_actions:
+            is_train = True
             self.max_action_num = max(len(e.tgt_actions) for e in self.examples)
             self.max_sketch_num = max(len(e.sketch) for e in self.examples)
+        else:
+            is_train = False
 
         self.src_sents = [e.src_sent for e in self.examples]
         self.src_sents_len = [len(e.src_sent) for e in self.examples]
@@ -119,6 +124,7 @@ class Batch(object):
 
         self.grammar = grammar
         self.cuda = cuda
+
 
     def __len__(self):
         return len(self.examples)
