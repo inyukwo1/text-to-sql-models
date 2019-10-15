@@ -10,7 +10,7 @@ CUDA_VISIBLE_DEVICES=$devices nohup python -u train.py --dataset ./data \
 --loss_epoch_threshold 50 \
 --sketch_loss_coefficie 1.0 \
 --beam_size 1 \
---seed 90 \
+--seed 4 \
 --save ${save_name} \
 --embed_size 300 \
 --sentence_features \
