@@ -82,12 +82,14 @@ class Action(object):
 
 
 class Root1(Action):
+    id_c_num = 4
     def __init__(self, id_c, parent=None):
         super(Root1, self).__init__()
         self.parent = parent
         self.id_c = id_c
         self._init_grammar()
         self.production = self.grammar_dict[id_c]
+
 
     @classmethod
     def _init_grammar(self):
@@ -104,6 +106,16 @@ class Root1(Action):
 
         return self.grammar_dict.values()
 
+    def get_child_rules(self):
+        if self.id_c == 0:
+            return [Root, Root]
+        elif self.id_c == 1:
+            return [Root, Root]
+        elif self.id_c == 2:
+            return [Root, Root]
+        else:
+            return [Root]
+
     def __str__(self):
         return 'Root1(' + str(self.id_c) + ')'
 
@@ -112,12 +124,27 @@ class Root1(Action):
 
 
 class Root(Action):
+    id_c_num = 6
     def __init__(self, id_c, parent=None):
         super(Root, self).__init__()
         self.parent = parent
         self.id_c = id_c
         self._init_grammar()
         self.production = self.grammar_dict[id_c]
+
+    def get_child_rules(self):
+        if self.id_c == 0:
+            return [Sel, Sup, Filter]
+        elif self.id_c == 1:
+            return [Sel, Filter, Order]
+        elif self.id_c == 2:
+            return [Sel, Sup]
+        elif self.id_c == 3:
+            return [Sel, Filter]
+        elif self.id_c == 4:
+            return [Sel, Order]
+        elif self.id_c == 5:
+            return [Sel]
 
     @classmethod
     def _init_grammar(self):
@@ -147,6 +174,7 @@ class N(Action):
     """
     Number of Columns
     """
+    id_c_num = 5
     def __init__(self, id_c, parent=None):
         super(N, self).__init__()
         self.parent = parent
@@ -169,6 +197,18 @@ class N(Action):
 
         return self.grammar_dict.values()
 
+    def get_child_rules(self):
+        if self.id_c == 0:
+            return [A]
+        elif self.id_c == 1:
+            return [A, A]
+        elif self.id_c == 2:
+            return [A, A, A]
+        elif self.id_c == 3:
+            return [A, A, A, A]
+        elif self.id_c == 4:
+            return [A, A, A, A, A]
+
     def __str__(self):
         return 'N(' + str(self.id_c) + ')'
 
@@ -185,6 +225,9 @@ class C(Action):
         self.id_c = id_c
         self.production = 'C T'
         self.table = None
+
+    def get_child_rules(self):
+        return [T]
 
     def __str__(self):
         return 'C(' + str(self.id_c) + ')'
@@ -205,6 +248,9 @@ class T(Action):
         self.production = 'T min'
         self.table = None
 
+    def get_child_rules(self):
+        return []
+
     def __str__(self):
         return 'T(' + str(self.id_c) + ')'
 
@@ -216,6 +262,7 @@ class A(Action):
     """
     Aggregator
     """
+    id_c_num = 6
     def __init__(self, id_c, parent=None):
         super(A, self).__init__()
 
@@ -241,6 +288,9 @@ class A(Action):
 
         return self.grammar_dict.values()
 
+    def get_child_rules(self):
+        return [C]
+
     def __str__(self):
         return 'A(' + str(self.id_c) + ')'
 
@@ -252,6 +302,7 @@ class Sel(Action):
     """
     Select
     """
+    id_c_num = 1
     def __init__(self, id_c, parent=None):
         super(Sel, self).__init__()
 
@@ -271,6 +322,9 @@ class Sel(Action):
 
         return self.grammar_dict.values()
 
+    def get_child_rules(self):
+        return [N]
+
     def __str__(self):
         return 'Sel(' + str(self.id_c) + ')'
 
@@ -281,6 +335,7 @@ class Filter(Action):
     """
     Filter
     """
+    id_c_num = 20
     def __init__(self, id_c, parent=None):
         super(Filter, self).__init__()
 
@@ -323,6 +378,14 @@ class Filter(Action):
 
         return self.grammar_dict.values()
 
+    def get_child_rules(self):
+        if self.id_c < 2:
+            return [Filter, Filter]
+        elif self.id_c < 11:
+            return [A]
+        else:
+            return [A, Root]
+
     def __str__(self):
         return 'Filter(' + str(self.id_c) + ')'
 
@@ -334,6 +397,7 @@ class Sup(Action):
     """
     Superlative
     """
+    id_c_num = 2
     def __init__(self, id_c, parent=None):
         super(Sup, self).__init__()
 
@@ -354,6 +418,9 @@ class Sup(Action):
 
         return self.grammar_dict.values()
 
+    def get_child_rules(self):
+        return [A]
+
     def __str__(self):
         return 'Sup(' + str(self.id_c) + ')'
 
@@ -365,6 +432,7 @@ class Order(Action):
     """
     Order
     """
+    id_c_num = 2
     def __init__(self, id_c, parent=None):
         super(Order, self).__init__()
 
@@ -384,6 +452,9 @@ class Order(Action):
             self.production_id[value] = id_x
 
         return self.grammar_dict.values()
+
+    def get_child_rules(self):
+        return [A]
 
     def __str__(self):
         return 'Order(' + str(self.id_c) + ')'

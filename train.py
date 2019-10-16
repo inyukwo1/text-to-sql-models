@@ -83,7 +83,7 @@ def train(args):
                 if acc > best_dev_acc:
                     utils.save_checkpoint(model, os.path.join(model_save_path, 'best_model.model'))
                     best_dev_acc = acc
-                utils.save_checkpoint(model, os.path.join(model_save_path, '{%s}_{%s}.model') % (epoch, acc))
+                utils.save_checkpoint(model, os.path.join(model_save_path, '{%s}_{%s}.model') % (epoch, loss))
 
                 log_str = 'Epoch: %d, Loss: %f, Sketch Acc: %f, Acc: %f, time: %f\n' % (
                     epoch + 1, loss, acc, acc, epoch_end - epoch_begin)

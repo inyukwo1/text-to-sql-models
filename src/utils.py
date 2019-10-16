@@ -287,23 +287,12 @@ def epoch_train(model, optimizer, batch_size, sql_data, table_data,
     while st < len(sql_data):
         ed = st+batch_size if st+batch_size < len(perm) else len(perm)
         examples = to_batch_seq(sql_data, table_data, perm, st, ed)
+
         optimizer.zero_grad()
 
-        score = model.forward(examples)
-        loss_sketch = -score[0]
-        loss_lf = -score[1]
-
-        loss_sketch = torch.mean(loss_sketch)
-        loss_lf = torch.mean(loss_lf)
-
-        if epoch > loss_epoch_threshold:
-            loss = loss_lf + sketch_loss_coefficient * loss_sketch
-        else:
-            loss = loss_lf + loss_sketch
+        loss = model.forward(examples)
 
         loss.backward()
-        if args.clip_grad > 0.:
-            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad)
         optimizer.step()
         cum_loss += loss.data.cpu().numpy()*(ed - st)
         st = ed
@@ -320,12 +309,11 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
         examples = to_batch_seq(sql_data, table_data, perm, st, ed,
                                                         is_train=False)
         for example in examples:
-            results_all = model.parse(example, beam_size=beam_size)
-            results = results_all[0]
+            results = model.parse(example, beam_size=beam_size)
             list_preds = []
             try:
 
-                pred = " ".join([str(x) for x in results[0].actions])
+                pred = " ".join([str(x) for x in results.actions])
                 for x in results:
                     list_preds.append(" ".join(str(x.actions)))
             except Exception as e:
@@ -336,7 +324,7 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
 
             simple_json = example.sql_json['pre_sql']
 
-            simple_json['sketch_result'] =  " ".join(str(x) for x in results_all[1])
+            simple_json['sketch_result'] =  " ".join(str(x) for x in results[1])
             simple_json['model_result'] = pred
 
             json_datas.append(simple_json)

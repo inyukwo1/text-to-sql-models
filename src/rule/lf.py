@@ -70,7 +70,8 @@ def _build_filter(lf, root_filter):
 
 def _build(lf):
     root = lf.pop(0)
-    assert isinstance(root, define_rule.Root)
+    if not isinstance(root, define_rule.Root):
+        assert isinstance(root, define_rule.Root)
     length = len(root.production.split()) - 1
     while len(root.children) != length:
         c_instance = lf.pop(0)
