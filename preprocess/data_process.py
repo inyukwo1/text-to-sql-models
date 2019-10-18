@@ -27,12 +27,9 @@ def process_datas(datas, args):
     with open(os.path.join(args.conceptNet, 'english_IsA.pkl'), 'rb') as f:
         english_IsA = pickle.load(f)
 
-    # copy of the origin question_toks
-    for d in datas:
-        if 'origin_question_toks' not in d:
-            d['origin_question_toks'] = d['question_toks']
-
     for entry in datas:
+        if 'origin_question_toks' not in entry:
+            entry['origin_question_toks'] = entry['question_toks']
         entry['question_toks'] = symbol_filter(entry['question_toks'])
         origin_question_toks = symbol_filter([x for x in entry['origin_question_toks'] if x.lower() != 'the'])
         question_toks = [wordnet_lemmatizer.lemmatize(x.lower()) for x in entry['question_toks'] if x.lower() != 'the']

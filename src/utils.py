@@ -250,7 +250,6 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
             rule_label = [eval(x) for x in sql['rule_label'].strip().split(' ')]
             if is_valid(rule_label, col_table_dict=col_table_dict, sql=sql) is False:
                 continue
-
         example = Example(
             src_sent=process_dict['question_arg'],
             col_num=len(process_dict['col_set_iter']),

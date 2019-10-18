@@ -26,8 +26,8 @@ def init_arg_parser():
 
     arg_parser.add_argument('--lstm', choices=['lstm', 'lstm_with_dropout', 'parent_feed'], default='lstm')
 
-    arg_parser.add_argument('--load_model', default=None, type=str, help='load a pre-trained model')
-    arg_parser.add_argument('--glove_embed_path', default="glove.42B.300d.txt", type=str)
+    arg_parser.add_argument('--load_model', default="saved_model/best_model.model", type=str, help='load a pre-trained model')
+    arg_parser.add_argument('--glove_embed_path', default="data/glove.42B.300d.txt", type=str)
 
     arg_parser.add_argument('--batch_size', default=64, type=int, help='batch size')
     arg_parser.add_argument('--beam_size', default=5, type=int, help='beam size for beam search')
@@ -36,8 +36,8 @@ def init_arg_parser():
 
     arg_parser.add_argument('--action_embed_size', default=128, type=int, help='size of word embeddings')
     arg_parser.add_argument('--type_embed_size', default=128, type=int, help='size of word embeddings')
-    arg_parser.add_argument('--hidden_size', default=100, type=int, help='size of LSTM hidden states')
-    arg_parser.add_argument('--att_vec_size', default=100, type=int, help='size of attentional vector')
+    arg_parser.add_argument('--hidden_size', default=300, type=int, help='size of LSTM hidden states')
+    arg_parser.add_argument('--att_vec_size', default=300, type=int, help='size of attentional vector')
     arg_parser.add_argument('--dropout', default=0.3, type=float, help='dropout rate')
     arg_parser.add_argument('--word_dropout', default=0.2, type=float, help='word dropout rate')
 
