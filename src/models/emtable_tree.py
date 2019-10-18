@@ -1,4 +1,4 @@
-from copy import deepcopy
+from copy import copy
 from src.rule import semQL as define_rule
 import itertools
 
@@ -45,15 +45,40 @@ class EmtableNode:
         self.parent = parent
         self.children = []
 
+    def copy(self, parent):
+        return EmtableNode(self.is_empty, self.rule_type, copy(self.action), parent)
+
 
 class EmtableTree:
     def __init__(self):
         self.root = EmtableNode(True, define_rule.Root1)
         self.empty_nodes = {self.root}
 
+    def copy(self):
+        newtree = EmtableTree()
+        newtree.root = self.root.copy(None)
+        newtree.empty_nodes = set()
+        def recursive_copy(node, children):
+            if node.is_empty:
+                newtree.empty_nodes.add(node)
+            for child in children:
+                newchild = child.copy(node)
+                node.children.append(newchild)
+                recursive_copy(newchild, child.children)
+        recursive_copy(newtree.root, self.root.children)
+        return newtree
+
+    def __str__(self):
+        def append_string(node):
+            string = str(node.action)
+            for child in node.children:
+                string += " " + append_string(child)
+            return string
+        return append_string(self.root)
+
     def possible_next_trees(self, table_num, col_num):
         possible_trees = []
-        for empty_node in self.empty_nodes:
+        for empty_node in copy(self.empty_nodes):
             # top-down
             if empty_node.rule_type == define_rule.C:
                 max_id_c = col_num
@@ -71,15 +96,15 @@ class EmtableTree:
                 for partition in partitioning(empty_node.children, len(child_rules)):
                     def gen_empty_tree(possible_trees, child_rules, current_tree, partition, handling_part, empty_node, new_children):
                         if handling_part == len(child_rules):
+                            before_children = copy(empty_node.children)
                             empty_node.children = new_children
-                            possible_trees.append(deepcopy(current_tree))
+                            possible_trees.append(current_tree.copy())
+                            empty_node.children = before_children
                             return
-                        try:
-                            if len(partition[handling_part]) == 1 and partition[handling_part][0].rule_type == child_rules[handling_part]:
-                                new_children[handling_part] = partition[handling_part][0]
-                                gen_empty_tree(possible_trees, child_rules, current_tree, partition, handling_part + 1, empty_node, new_children)
-                        except Exception as e:
-                            print("x")
+                        if len(partition[handling_part]) == 1 and partition[handling_part][0].rule_type == child_rules[handling_part]:
+                            new_children[handling_part] = partition[handling_part][0]
+                            gen_empty_tree(possible_trees, child_rules, current_tree, partition, handling_part + 1, empty_node, new_children)
+
                         new_empty = EmtableNode(is_empty=True, rule_type=child_rules[handling_part], action=None, parent=empty_node)
                         new_children[handling_part] = new_empty
                         new_empty.children = partition[handling_part]
@@ -92,6 +117,7 @@ class EmtableTree:
                 self.empty_nodes.add(empty_node)
             # mid-out
             for action in all_possible_actions(table_num, col_num):
+                origin_empty_children = copy(empty_node.children)
                 new_node = EmtableNode(False, type(action), action, empty_node)
                 new_node.children = empty_node.children
                 empty_node.children = [new_node]
@@ -101,8 +127,10 @@ class EmtableTree:
                 for partition in partitioning(new_node.children, len(child_rules)):
                     def gen_empty_tree(possible_trees, child_rules, current_tree, partition, handling_part, new_node, new_children):
                         if handling_part == len(child_rules):
+                            before_children = copy(new_node.children)
                             new_node.children = new_children
-                            possible_trees.append(deepcopy(current_tree))
+                            possible_trees.append(current_tree.copy())
+                            new_node.children = before_children
                             return
                         if len(partition[handling_part]) == 1 and partition[handling_part][0].rule_type == child_rules[handling_part]:
                             new_children[handling_part] = partition[handling_part][0]
@@ -116,17 +144,21 @@ class EmtableTree:
                     gen_empty_tree(possible_trees, child_rules, self, partition, 0, new_node, [None] * len(child_rules))
 
                 self.empty_nodes.remove(new_node)
+                empty_node.children = origin_empty_children
             # add children
-            for action in all_possible_actions(table_num, col_num):
-                new_node = EmtableNode(False, type(action), action, empty_node)
-                self.empty_nodes.add(new_node)
-                for child_rule in action.get_child_rules():
-                    new_node.children.append(EmtableNode(True, None, None, new_node))
-                for child_idx in range(len(empty_node.children) + 1):
-                    empty_node.children.insert(child_idx, new_node)
-                    possible_trees.append(deepcopy(self))
-                    empty_node.children.remove(new_node)
-                self.empty_nodes.remove(new_node)
+            if len(empty_node.children) < 7:
+                for action in all_possible_actions(table_num, col_num):
+                    new_node = EmtableNode(False, type(action), action, empty_node)
+                    self.empty_nodes.add(new_node)
+                    for child_rule in action.get_child_rules():
+                        new_node.children.append(EmtableNode(True, None, None, new_node))
+                    for child_idx in range(len(empty_node.children) + 1):
+                        empty_node.children.insert(child_idx, new_node)
+
+                        possible_trees.append(self.copy())
+                        empty_node.children.remove(new_node)
+                    self.empty_nodes.remove(new_node)
+        return possible_trees
 
         # TODO remove unreachable tree
 

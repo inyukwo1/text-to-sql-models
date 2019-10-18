@@ -21,7 +21,7 @@ from src.rule import semQL as define_rule
 from tree_lstm import Tree, BatchedTree, TreeLSTM
 from src.rule import lf
 from random import randrange, sample
-from src.models.emtable_tree import EmtableTree
+from src.models.emtable_tree import EmtableTree, EmtableNode
 
 
 class IRNet(BasicModel):
@@ -99,7 +99,7 @@ class IRNet(BasicModel):
 
         self.table_pointer_net = PointerNet(args.hidden_size, args.col_embed_size, attention_type=args.column_att)
 
-        self.tree_lstm = TreeLSTM(args.hidden_size, args.hidden_size, 0.3, 'n_ary', 5)
+        self.tree_lstm = TreeLSTM(args.hidden_size, args.hidden_size, 0.3, 'n_ary', 8)
 
         self.outer = nn.Sequential(
             nn.Linear(args.hidden_size * 3, args.hidden_size),
@@ -156,7 +156,7 @@ class IRNet(BasicModel):
 
         # TODO attention
 
-        batched_tree, gold = self.batch_to_punked_trees(batch, table_embedding, schema_embedding)
+        batched_tree, gold, emptabletrees = self.batch_to_punked_trees(batch, table_embedding, schema_embedding)
         encoded_tree = self.tree_lstm(batched_tree).get_hidden_state()
 
         mix1 = encoded_tree[:,0,:] - last_state
@@ -167,14 +167,23 @@ class IRNet(BasicModel):
         out = self.outer(mix).squeeze()
         loss = torch.nn.functional.binary_cross_entropy_with_logits(out, gold)
 
-        return loss
+
+        ###logging
+        loging_out = torch.sigmoid(out)
+        for b, tree in enumerate(emptabletrees):
+            print("TREE: {}".format(tree))
+            print("GOLD: {}".format(gold[b]))
+            print("OUT: {}".format(loging_out[b]))
+            print("")
+
+        return torch.sum(loss)
 
     def batch_to_punked_trees(self, batch: Batch, col_embeddings, tab_embeddings):
         def punk_tree(self, root, col_embeddings, tab_embeddings):
             tree = Tree(self.hidden_size)
             def traverse_1(self, node):
                 node.punk = False
-                node_num = 0
+                node_num = 1
                 for child in node.children:
                     node_num += traverse_1(self, child)
                 return node_num
@@ -218,7 +227,34 @@ class IRNet(BasicModel):
             else:
                 root_id = tree.add_node(parent_id=None, tensor=self.production_embed.weight[self.grammar.prod2id[root.production]])
             traverse_3(self, root, root_id)
-            return tree
+
+            emptable_tree = EmtableTree()
+            emptable_tree.root.is_empty = root.punk
+            emptable_tree.root.rule_type = type(root)
+            if root.punk:
+                emptable_tree.root.action = None
+            else:
+                emptable_tree.root.action = root
+                emptable_tree.empty_nodes = set()
+
+            def traverse_4(node, emptable_node):
+                for child in node.children:
+                    if child.punk:
+                        is_empty = True
+                        rule_type = type(child)
+                        action = None
+                    else:
+                        is_empty = False
+                        rule_type = type(child)
+                        action = child
+                    new_node = EmtableNode(is_empty, rule_type, action, node)
+                    if is_empty:
+                        emptable_tree.empty_nodes.add(new_node)
+                    emptable_node.children.append(new_node)
+                    traverse_4(child, new_node)
+            traverse_4(root, emptable_tree.root)
+
+            return tree, emptable_tree
 
         def example_to_punked_tree(self, example, col_embeddings, tab_embeddings):
             # root = lf.build_tree(example.truth_actions)
@@ -272,29 +308,32 @@ class IRNet(BasicModel):
                     if check_if_exists(origin_actions, child):
                         return True
                 return False
-            tree = punk_tree(self, root, col_embeddings, tab_embeddings)
+            tree, emptabletree = punk_tree(self, root, col_embeddings, tab_embeddings)
             if check_if_exists(origin_actions, root):
-                return tree
-            return None
+                return tree, emptabletree
+            return None, None
 
 
         gold = []
         trees = []
+        emptabletrees = []
         for b in range(len(batch)):
             if randrange(100) < 50:
-                tree = example_to_punked_tree(self, batch.examples[b], col_embeddings[b], tab_embeddings[b])
+                tree, emptabletree = example_to_punked_tree(self, batch.examples[b], col_embeddings[b], tab_embeddings[b])
                 gold.append(1.)
             else:
                 tree = None
+                emptabletree = None
                 while tree is None:
-                    tree = make_random_negative_tree(self, batch.examples[b], col_embeddings[b], tab_embeddings[b])
+                    tree, emptabletree = make_random_negative_tree(self, batch.examples[b], col_embeddings[b], tab_embeddings[b])
                 gold.append(0.)
             trees.append(tree)
+            emptabletrees.append(emptabletree)
 
         gold = torch.Tensor(gold)
         if torch.cuda.is_available():
             gold = gold.cuda()
-        return BatchedTree(trees), gold
+        return BatchedTree(trees), gold, emptabletrees
 
     def parse(self, example, beam_size=5):
         batch = Batch([example], self.grammar, cuda=self.args.cuda)
@@ -333,10 +372,15 @@ class IRNet(BasicModel):
 
         table_embedding = table_embedding + col_type_var
 
+        table_embedding = table_embedding.squeeze(0)
+        schema_embedding = schema_embedding.squeeze(0)
+
         # TODO attention
         selected_tree = EmtableTree()
         while True:
+            print("SELECTED : {}".format(selected_tree))
             possible_trees = selected_tree.possible_next_trees(example.table_len, example.col_num)
+
             if not possible_trees:
                 break
             trees = []
@@ -347,33 +391,40 @@ class IRNet(BasicModel):
                         if child.is_empty:
                             new_id = tree.add_node(parent_id=id, tensor=self.production_embed.weight[-1])
                         else:
-                            if isinstance(child.rule_type, define_rule.C):
+                            if child.rule_type == define_rule.C:
                                 new_id = tree.add_node(parent_id=id, tensor=table_embedding[child.action.id_c])
-                            elif isinstance(child.rule_type, define_rule.T):
+                            elif child.rule_type == define_rule.T:
                                 new_id = tree.add_node(parent_id=id, tensor=schema_embedding[child.action.id_c])
                             else:
                                 new_id = tree.add_node(parent_id=id, tensor=self.production_embed.weight[
-                                    self.grammar.prod2id[child.action.production]])
+                                self.grammar.prod2id[child.action.production]])
                         traverse(self, child, new_id)
 
                 if possible_tree.root.is_empty:
-                    root_id = tree.add_node(parent_id=None, tensor=self.type_embed.weight[-1])
+                    root_id = tree.add_node(parent_id=None, tensor=self.production_embed.weight[-1])
                 else:
-                    root_id = tree.add_node(parent_id=None, tensor=self.type_embed.weight[
+                    root_id = tree.add_node(parent_id=None, tensor=self.production_embed.weight[
                         self.grammar.prod2id[possible_tree.root.action.production]])
                 traverse(self, possible_tree.root, root_id)
                 trees.append(tree)
             batched_tree = BatchedTree(trees)
             encoded_tree = self.tree_lstm(batched_tree).get_hidden_state()
 
-            mix1 = encoded_tree - last_state
-            mix2 = encoded_tree * last_state
+            mix1 = encoded_tree[:, 0, :] - last_state
+            mix2 = encoded_tree[:, 0, :] * last_state
             mix3 = mix1.abs()
 
             mix = torch.cat((mix1, mix2, mix3), dim=-1)
             out = self.outer(mix).squeeze()
             max_tree = np.argmax(out.data.cpu().numpy())
+
+            for en, tree in enumerate(possible_trees):
+                print("POSSIBLE: {} / {}".format(tree, out.data.cpu().numpy()[en]))
+            print("")
+            print("")
             selected_tree = possible_trees[max_tree]
+        print("TOTAL SELECTED: {}".format(selected_tree))
+        print("\n\n\n\n")
 
         return selected_tree
 

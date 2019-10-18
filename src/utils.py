@@ -19,6 +19,7 @@ from nltk.stem import WordNetLemmatizer
 from src.dataset import Example
 from src.rule import lf
 from src.rule.semQL import Sup, Sel, Order, Root, Filter, A, N, C, T, Root1
+from tqdm import tqdm
 
 wordnet_lemmatizer = WordNetLemmatizer()
 
@@ -304,18 +305,16 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
     st = 0
 
     json_datas = []
-    while st < len(sql_data):
+    for st in tqdm(range(0, len(sql_data), batch_size)):
         ed = st+batch_size if st+batch_size < len(perm) else len(perm)
         examples = to_batch_seq(sql_data, table_data, perm, st, ed,
                                                         is_train=False)
-        for example in examples:
+        for ex_idx, example in enumerate(examples):
             results = model.parse(example, beam_size=beam_size)
             list_preds = []
             try:
 
-                pred = " ".join([str(x) for x in results.actions])
-                for x in results:
-                    list_preds.append(" ".join(str(x.actions)))
+                pred = str(results)
             except Exception as e:
                 # print('Epoch Acc: ', e)
                 # print(results)
@@ -324,11 +323,13 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
 
             simple_json = example.sql_json['pre_sql']
 
-            simple_json['sketch_result'] =  " ".join(str(x) for x in results[1])
             simple_json['model_result'] = pred
 
             json_datas.append(simple_json)
-        st = ed
+
+            print("PRED:: {}".format(pred))
+            print("GOLD:: {}".format(sql_data[st + ex_idx]['rule_label']))
+            print("######################", flush=True)
     return json_datas
 
 def eval_acc(preds, sqls):
