@@ -1,0 +1,64 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 10vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #09d3ac;
+}
+
+.schema {
+  width: 100%;
+  margin: 5px;
+  display: flex;
+}
+
+.nlq {
+  width: 100%;
+  margin: 5px;
+  display: flex;
+}
+
+.nlq_textbox {
+  flex: 2;
+}
+.button {
+  float: right;
+  padding: 5px;
+}
+.result {
+  width: 100%;
+  margin: 5px;
+  display: flex;
+}
+
+.examples {
+  display: flex;
+  height: 20vh;
+  width: 100%;
+}
+.area {
+  flex: 2;
+  border: solid 1px;
+}
+
+.ex_item {
+  display: flex;
+  align-items: left;
+  flex-direction: column;
+  border: solid 0.5px;
+}
