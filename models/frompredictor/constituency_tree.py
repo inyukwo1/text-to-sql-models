@@ -7,6 +7,7 @@ import functools
 from typing import List, Tuple
 from collections import OrderedDict
 from torch.nn import GRUCell
+from tree_lstm import Tree, TreeLSTM, BatchedTree
 
 
 class ConstituencyNode:
@@ -23,7 +24,7 @@ class ConstituencyNode:
 
 # TODO make test!
 class ConstituencySubtree:
-    def __init__(self, leaves: List[Tuple[torch.Tensor, ConstituencyNode]], words: List[str]):
+    def __init__(self, leaves: List[Tuple], words: List[str]):
         self.leaves = leaves
         self.words = words
 
@@ -61,7 +62,7 @@ class ConstituencyTree:
         def search_children_and_add(parent: ConstituencyNode, tree: nltk.Tree, level):
             for child in tree:
                 if isinstance(child, str):
-                    tensor = sentence_tensors[len(self.leaves)].unsqueeze(0)
+                    tensor = sentence_tensors[len(self.leaves)]
                     self.leaves.append((tensor, parent))
                     self.words.append(child)
                 else:
@@ -90,40 +91,56 @@ class SubtreeEncoder(torch.nn.Module):
         super(SubtreeEncoder, self).__init__()
         # TODO - [experiments]
         #          just sum <--
-        #          using only one gru
+        #          using only .one gru
         #          various gru
         #          something else..(search tree-encoder)?
         tags = {'JJR', 'CD', '<STOP>', 'JJ', 'FW', 'NP', 'MD', 'FRAG', 'SINV', 'ADJP', 'WHADJP', 'VB', 'CC', 'PRT', 'NX', ':', 'WHNP', 'IN', 'NN', 'VBP', "''", '$', 'WHPP', 'JJS', 'SQ', 'TO', 'RP', 'RBS', 'UCP', 'PP', 'PRP$', 'PRN', 'WDT', 'NNS', 'RBR', 'X', 'CONJP', 'SBAR', '``', 'NNP', 'VBG', 'WP', 'DT', 'PRP', 'SBARQ', ',', '#', 'EX', 'WHADVP', 'RB', 'NNPS', 'VP', 'ADVP', 'VBD', '-LRB-', 'WP$', '-RRB-', 'UH', '.', 'WRB', 'INTJ', 'S', 'VBZ', 'QP', 'VBN', 'POS', 'PDT'}
-        self.gru_cell = GRUCell(H_PARAM["encoded_num"], H_PARAM["encoded_num"])
         self.param_dict = torch.nn.ParameterDict()
         for st_tag in tags:
             st_tag = st_tag.replace(".", "dot")
             for ed_tag in tags:
                 ed_tag = ed_tag.replace(".", "dot")
-                new_param = torch.nn.Parameter(torch.randn(1, H_PARAM["encoded_num"]))
+                new_param = torch.nn.Parameter(torch.randn(H_PARAM["encoded_num"]))
                 new_param.requires_grad = True
                 self.param_dict[st_tag + "_" + ed_tag] = new_param
-        self.outer = torch.nn.Sequential(
-            torch.nn.Linear(H_PARAM["encoded_num"], H_PARAM["encoded_num"]),
-            torch.nn.Sigmoid()
-        )
 
-    def forward(self, subtree: ConstituencySubtree):
-        # just sum
-        # summed = 0
-        # leaves = []
-        # for leav in subtree.leaves:
-        #     leaves.append(leav[0])
-        # leaves = torch.stack(leaves)
-        # return torch.sum(self.outer(leaves), dim=0).squeeze()
-        # various gru
+        new_param = torch.nn.Parameter(torch.randn(H_PARAM["encoded_num"]))
+        new_param.requires_grad = True
+        self.param_dict["root"] = new_param
+        self.n_h = H_PARAM["encoded_num"]
+        self.tree_lstm = TreeLSTM(self.n_h, self.n_h, 0.3, cell_type='n_ary', n_ary=5)
+
+
+    def to_batched_tree(self, subtree: ConstituencySubtree):
+        tree = Tree(self.n_h)
+        root_id = tree.add_node(None, self.param_dict["root"])
+        added_nodes = {}
         while not subtree.only_root():
             leaf_idx = subtree.get_one_leaf()
-            leaf_tensor, leaf_node = subtree.leaves[leaf_idx]
-            leaf_tag = leaf_node.tag
-            parent_tag = leaf_node.parent.tag
-            leaf_tag = leaf_tag.replace(".", "dot")
-            parent_tag = parent_tag.replace(".", "dot")
-            new_tensor = self.gru_cell(self.param_dict[leaf_tag + "_" + parent_tag], leaf_tensor)
-            subtree.update_leaf(leaf_idx, new_tensor)
-        return self.outer(subtree.leaves[0][0]).squeeze(0)
+            tensor, leaf = subtree.leaves[leaf_idx]
+            childrens_ids = []
+            for child in leaf.children:
+                if child in added_nodes:
+                    childrens_ids.append(added_nodes[child])
+            new_id = tree.add_node_bottom_up(childrens_ids, tensor)
+            added_nodes[leaf] = new_id
+            if leaf.parent in added_nodes:
+                tree.add_link(new_id, added_nodes[leaf.parent])
+            leaf_tag = leaf.tag.replace(".", "dot")
+            parent_tag = leaf.parent.tag.replace(".", "dot")
+            tag_tensor = self.param_dict[leaf_tag + "_" + parent_tag]
+            subtree.update_leaf(leaf_idx, tag_tensor)
+        tensor, leaf = subtree.leaves[0]
+        childrens_ids = []
+        for child in leaf.children:
+            if child in added_nodes:
+                childrens_ids.append(added_nodes[child])
+
+        new_id = tree.add_node_bottom_up(childrens_ids, tensor)
+        tree.add_link(new_id, root_id)
+        return BatchedTree([tree])
+
+
+    def forward(self, subtree: ConstituencySubtree):
+        batched_tree = self.to_batched_tree(subtree)
+        return self.tree_lstm.forward(batched_tree).get_hidden_state().squeeze(0)[0]

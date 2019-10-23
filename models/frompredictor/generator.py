@@ -108,6 +108,7 @@ class GeneratorWrapper:
         # 2) 안뽑아야되는데 뽑음 -> 뽑은애 한테 로스 및 no entity에 로스
         # 3) 뽑는지 안뽑는지 모르는거 -> 로스 x
         # 4) 뽑아야되는데 잘 뽑음 -> 더 잘 뽑게 로스 주고 no entity를 낮춤
+        # TODO - 다음과 같은 로스를 주고 싶다 1) subtree 중 하나만 선택하도록 하는 loss 2) entity 중 하나만 선택하도록 하는 loss
         labels, schemas, questions, sqls = gt_data
         B = len(score)
         losses = []
