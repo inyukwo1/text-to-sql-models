@@ -99,7 +99,7 @@ class IRNet(BasicModel):
 
         self.table_pointer_net = PointerNet(args.hidden_size, args.col_embed_size, attention_type=args.column_att)
 
-        self.tree_lstm = TreeLSTM(args.hidden_size, args.hidden_size, 0.3, 'n_ary', 8)
+        self.tree_lstm = TreeLSTM(args.hidden_size, args.hidden_size, 0.3, 'n_ary', 8, 3)
 
         self.outer = nn.Sequential(
             nn.Linear(args.hidden_size * 3, args.hidden_size),
@@ -198,11 +198,14 @@ class IRNet(BasicModel):
             def traverse_2(self, parent, node, node_id, selected_punks):
                 new_parent = node
                 if node_id in selected_punks:
-                    node.punk = True
-                    if parent and parent.punk:
-                        parent.children.remove(node)
-                        parent.children += node.children
-                        new_parent = parent
+                    if parent and parent.punk and len(parent.children) + len(node.children) > 8:
+                        pass
+                    else:
+                        if parent and parent.punk:
+                            parent.children.remove(node)
+                            parent.children += node.children
+                            new_parent = parent
+                        node.punk = True
 
                 node_id += 1
                 for child in node.children:
