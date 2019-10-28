@@ -46,6 +46,12 @@
   display: flex;
 }
 
+.attention {
+  width: 100%;
+  margin: 5px;
+  display: flex;
+}
+
 .examples {
   display: flex;
   height: 20vh;

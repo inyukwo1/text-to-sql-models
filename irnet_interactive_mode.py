@@ -227,7 +227,7 @@ def get_runner(model_path):
 
         entry = {}
         entry["question"] = nl_string
-        entry["question_toks"] = re.findall(r"[^,.:;\"`?! ]+|[,.:;\"?!]", nl_string.replace("'", " '")) # TODO split by special separator
+        entry["question_toks"] = re.findall(r"[^,.:;\"`?! ]+|[,.:;\"?!]", nl_string.replace("'", " '"))
         entry['names'] = table['schema_content']
         entry['table_names'] = table['table_names']
         entry['col_set'] = table['col_set']
@@ -280,10 +280,21 @@ def get_runner(model_path):
         results_all = model.parse(example, beam_size=5)
         results = results_all[0]
         list_preds = []
+        list_actions = []
+        list_attentions = []
         try:
             pred = " ".join([str(x) for x in results[0].actions])
             for x in results:
                 list_preds.append(" ".join(str(x.actions)))
+                str_actions = []
+                for action in x.actions:
+                    str_actions.append(action.print_str(entry['table_names'], entry['col_set']))
+
+                att_weights = []
+                for action_info in x.action_infos:
+                    att_weights.append(action_info.att_weight.data.cpu().numpy())
+                list_actions.append(str_actions)
+                list_attentions.append(att_weights)
         except Exception as e:
             # print('Epoch Acc: ', e)
             # print(results)
@@ -306,7 +317,8 @@ def get_runner(model_path):
         except Exception as e:
             result = transform(simple_json, table,
                                origin='Root1(3) Root(5) Sel(0) N(0) A(3) C(0) T(0)')
-        return result[0]
+        attention_list = [att.tolist() for att in list_attentions[0]]
+        return result[0], list_actions[0], entry["question_toks"], attention_list
 
     return runner
 
@@ -322,11 +334,14 @@ class Service(Resource):
             parser.add_argument('question', required=True, type=str)
             args = parser.parse_args()
             print("done well")
-            return {'result': runner(args["db_id"], args["question"])}
+            result_query, actions, question, attention = runner(args["db_id"], args["question"])
+            return {'result': result_query,
+                    'actions': actions,
+                    'question': question,
+                    'attention': attention}
         except Exception as e:
             print("done not well")
             return {'result': str(e)}
-
 
 app = Flask('irnet service')
 CORS(app)
@@ -334,5 +349,8 @@ api = Api(app)
 api.add_resource(Service, '/service')
 
 if __name__ == "__main__":
-    # runner("dog_kennels", "Which professionals have done at least two treatments? List the professional's id, role, and first name.")
+    # res, act, att = runner("dog_kennels", "Which professionals have done at least two treatments? List the professional's id, role, and first name.")
+    # print(res)
+    # print(act)
+    # print(att)
     app.run(host='141.223.199.148', port=5000, debug=False)

@@ -104,6 +104,16 @@ class Root1(Action):
 
         return self.grammar_dict.values()
 
+    def print_str(self, table_names, col_names):
+        if self.id_c == 0:
+            return "Z::= intersect R R"
+        elif self.id_c == 1:
+            return "Z::= union R R"
+        elif self.id_c == 2:
+            return "Z::= except R R"
+        elif self.id_c == 3:
+            return "Z::= R"
+
     def __str__(self):
         return 'Root1(' + str(self.id_c) + ')'
 
@@ -135,6 +145,20 @@ class Root(Action):
             self.production_id[value] = id_x
 
         return self.grammar_dict.values()
+
+    def print_str(self, table_names, col_names):
+        if self.id_c == 0:
+            return "R::= Sel Sup Filter"
+        elif self.id_c == 1:
+            return "R::= Sel Filter Order"
+        elif self.id_c == 2:
+            return "R::= Sel Sup"
+        elif self.id_c == 3:
+            return "R::= Sel Filter"
+        elif self.id_c == 4:
+            return "R::= Sel Order"
+        elif self.id_c == 5:
+            return "R::= Sel"
 
     def __str__(self):
         return 'Root(' + str(self.id_c) + ')'
@@ -169,6 +193,18 @@ class N(Action):
 
         return self.grammar_dict.values()
 
+    def print_str(self, table_names, col_names):
+        if self.id_c == 0:
+            return "N::= A"
+        elif self.id_c == 1:
+            return "N::= A A"
+        elif self.id_c == 2:
+            return "N::= A A A"
+        elif self.id_c == 3:
+            return "N::= A A A A"
+        elif self.id_c == 4:
+            return "N::= A A A A A"
+
     def __str__(self):
         return 'N(' + str(self.id_c) + ')'
 
@@ -185,6 +221,9 @@ class C(Action):
         self.id_c = id_c
         self.production = 'C T'
         self.table = None
+
+    def print_str(self, table_names, col_names):
+        return "C::= column({})".format(col_names[self.id_c])
 
     def __str__(self):
         return 'C(' + str(self.id_c) + ')'
@@ -204,6 +243,9 @@ class T(Action):
         self.id_c = id_c
         self.production = 'T min'
         self.table = None
+
+    def print_str(self, table_names, col_names):
+        return "T::= table({})".format(table_names[self.id_c])
 
     def __str__(self):
         return 'T(' + str(self.id_c) + ')'
@@ -241,6 +283,20 @@ class A(Action):
 
         return self.grammar_dict.values()
 
+    def print_str(self, table_names, col_names):
+        if self.id_c == 0:
+            return "A::= none C"
+        elif self.id_c == 1:
+            return "A::= max C"
+        elif self.id_c == 2:
+            return "A::= min C"
+        elif self.id_c == 3:
+            return "A::= count C"
+        elif self.id_c == 4:
+            return "A::= sum C"
+        elif self.id_c == 5:
+            return "A::= avg C"
+
     def __str__(self):
         return 'A(' + str(self.id_c) + ')'
 
@@ -270,6 +326,9 @@ class Sel(Action):
             self.production_id[value] = id_x
 
         return self.grammar_dict.values()
+
+    def print_str(self, table_names, col_names):
+        return "Sel::= N"
 
     def __str__(self):
         return 'Sel(' + str(self.id_c) + ')'
@@ -323,6 +382,48 @@ class Filter(Action):
 
         return self.grammar_dict.values()
 
+    def print_str(self, table_names, col_names):
+        if self.id_c == 0:
+            return "Filter::= and Filter Filter"
+        elif self.id_c == 1:
+            return "Filter::= or Filter Filter"
+        elif self.id_c == 2:
+            return "Filter::= = A"
+        elif self.id_c == 3:
+            return "Filter::= != A"
+        elif self.id_c == 4:
+            return "Filter::= < A"
+        elif self.id_c == 5:
+            return "Filter::= > A"
+        elif self.id_c == 6:
+            return "Filter::= <= A"
+        elif self.id_c == 7:
+            return "Filter::= >= A"
+        elif self.id_c == 8:
+            return "Filter::= between A"
+        elif self.id_c == 9:
+            return "Filter::= like A"
+        elif self.id_c == 10:
+            return "Filter::= not_like A"
+        elif self.id_c == 11:
+            return "Filter::= = A R"
+        elif self.id_c == 12:
+            return "Filter::= < A R"
+        elif self.id_c == 13:
+            return "Filter::= > A R"
+        elif self.id_c == 14:
+            return "Filter::= != A R"
+        elif self.id_c == 15:
+            return "Filter::= between A R"
+        elif self.id_c == 16:
+            return "Filter::= >= A R"
+        elif self.id_c == 17:
+            return "Filter::= <= A R"
+        elif self.id_c == 18:
+            return "Filter::= in A R"
+        elif self.id_c == 19:
+            return "Filter::= not_in A R"
+
     def __str__(self):
         return 'Filter(' + str(self.id_c) + ')'
 
@@ -354,6 +455,12 @@ class Sup(Action):
 
         return self.grammar_dict.values()
 
+    def print_str(self, table_names, col_names):
+        if self.id_c == 0:
+            return "Sup::= des A"
+        elif self.id_c == 1:
+            return "Sup::= asc A"
+
     def __str__(self):
         return 'Sup(' + str(self.id_c) + ')'
 
@@ -384,6 +491,12 @@ class Order(Action):
             self.production_id[value] = id_x
 
         return self.grammar_dict.values()
+
+    def print_str(self, table_names, col_names):
+        if self.id_c == 0:
+            return "Order::= des A"
+        elif self.id_c == 1:
+            return "Order::= asc A"
 
     def __str__(self):
         return 'Order(' + str(self.id_c) + ')'

@@ -598,10 +598,10 @@ class IRNet(BasicModel):
                 inputs.append(pre_types)
                 x = torch.cat(inputs, dim=-1)
 
-            (h_t, cell_t), att_t = self.step(x, h_tm1, exp_src_encodings,
+            (h_t, cell_t), att_t, att_weight = self.step(x, h_tm1, exp_src_encodings,
                                              exp_utterance_encodings_lf_linear, self.lf_decoder_lstm,
                                              self.lf_att_vec_linear,
-                                             src_token_mask=None)
+                                             src_token_mask=None, return_att_weight=True)
 
             apply_rule_log_prob = F.log_softmax(self.production_readout(att_t), dim=-1)
 
@@ -648,7 +648,7 @@ class IRNet(BasicModel):
                         new_hyp_score = hyp.score + prod_score.data.cpu()
                         meta_entry = {'action_type': define_rule.A, 'prod_id': prod_id,
                                       'score': prod_score, 'new_hyp_score': new_hyp_score,
-                                      'prev_hyp_id': hyp_id}
+                                      'prev_hyp_id': hyp_id, "att_weight": att_weight[hyp_id]}
                         new_hyp_meta.append(meta_entry)
 
                 elif type(padding_sketch[t]) == define_rule.C:
@@ -657,7 +657,7 @@ class IRNet(BasicModel):
                         new_hyp_score = hyp.score + col_sel_score.data.cpu()
                         meta_entry = {'action_type': define_rule.C, 'col_id': col_id,
                                       'score': col_sel_score, 'new_hyp_score': new_hyp_score,
-                                      'prev_hyp_id': hyp_id}
+                                      'prev_hyp_id': hyp_id, "att_weight": att_weight[hyp_id]}
                         new_hyp_meta.append(meta_entry)
                 elif type(padding_sketch[t]) == define_rule.T:
                     for t_id, _ in enumerate(batch.table_names[0]):
@@ -666,14 +666,14 @@ class IRNet(BasicModel):
 
                         meta_entry = {'action_type': define_rule.T, 't_id': t_id,
                                       'score': t_sel_score, 'new_hyp_score': new_hyp_score,
-                                      'prev_hyp_id': hyp_id}
+                                      'prev_hyp_id': hyp_id, "att_weight": att_weight[hyp_id]}
                         new_hyp_meta.append(meta_entry)
                 else:
                     prod_id = self.grammar.prod2id[padding_sketch[t].production]
                     new_hyp_score = hyp.score + torch.tensor(0.0)
                     meta_entry = {'action_type': type(padding_sketch[t]), 'prod_id': prod_id,
                                   'score': torch.tensor(0.0), 'new_hyp_score': new_hyp_score,
-                                  'prev_hyp_id': hyp_id}
+                                  'prev_hyp_id': hyp_id, "att_weight": att_weight[hyp_id]}
                     new_hyp_meta.append(meta_entry)
 
             if not new_hyp_meta: break
@@ -709,6 +709,7 @@ class IRNet(BasicModel):
                 action_info.action = action
                 action_info.t = t
                 action_info.score = hyp_meta_entry['score']
+                action_info.att_weight = hyp_meta_entry['att_weight']
 
                 new_hyp = prev_hyp.clone_and_apply_action_info(action_info)
                 new_hyp.score = new_hyp_score

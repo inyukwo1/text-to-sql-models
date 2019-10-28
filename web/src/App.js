@@ -2,6 +2,7 @@ import React from 'react';
 import Select from 'react-select';
 import axios from "axios";
 import ScrollArea from "react-scrollbar"
+import AttentionViewer from "./AttentionViewer.js"
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
 import dog_kennels from "./images/dog_kennels.png"
@@ -57,7 +58,9 @@ class App extends React.Component {
     db_id: '',
     nlq: '',
     result: '',
-    schema_img: empty
+    schema_img: empty,
+    attention_data: [],
+    question: []
   }
 
   handleDBChange = (e) => {
@@ -94,6 +97,20 @@ class App extends React.Component {
       this.setState({
         result: response.data.result
       })
+      if ('actions' in response.data) {
+        const attention_data = []
+        for (const [index, action] of response.data.actions.entries()) {
+          const entry = {rule: action}
+          for (const [q_index, attention] of response.data.attention[index].entries()) {
+            entry[String(q_index)] = attention.toFixed(4)
+          }
+          attention_data.push(entry)
+        }
+        this.setState({
+          attention_data: attention_data,
+          question: response.data.question
+        })
+      }
     })
   }
 
@@ -155,6 +172,10 @@ class App extends React.Component {
         </div>
         <div className='result'>
           <b> Result: </b> {this.state.result}
+        </div>
+        <div className="attention">
+          <b> Attention: </b>
+          <AttentionViewer data={this.state.attention_data} question={this.state.question} />
         </div>
       </div>
     );
