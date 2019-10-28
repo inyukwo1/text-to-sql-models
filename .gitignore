@@ -1,0 +1,8 @@
+.idea/
+saved_model/
+analysis/
+log.txt/
+renv/
+venv/
+data/
+__pycache__/
