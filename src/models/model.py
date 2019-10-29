@@ -116,6 +116,7 @@ class IRNet(BasicModel):
         print('Use Column Pointer: ', True if self.use_column_pointer else False)
         
     def forward(self, examples):
+        acc = 0
         args = self.args
         # now should implement the examples
         batch = Batch(examples, self.grammar, cuda=self.args.cuda)
@@ -174,9 +175,13 @@ class IRNet(BasicModel):
             print("TREE: {}".format(tree))
             print("GOLD: {}".format(gold[b]))
             print("OUT: {}".format(loging_out[b]))
+            if loging_out[b].cpu().data.item() < 0.5 and gold[b].cpu().data.item() < 0.5:
+                acc += 1
+            elif loging_out[b].cpu().data.item() >= 0.5 and gold[b].cpu().data.item() >= 0.5:
+                acc += 1
             print("")
 
-        return torch.sum(loss)
+        return torch.sum(loss), acc
 
     def batch_to_punked_trees(self, batch: Batch, col_embeddings, tab_embeddings):
         def punk_tree(self, root, col_embeddings, tab_embeddings):

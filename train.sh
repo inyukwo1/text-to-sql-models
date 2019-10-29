@@ -18,5 +18,5 @@ CUDA_VISIBLE_DEVICES=$devices python -u train.py --dataset ./data \
 --hidden_size 300 \
 --lr_scheduler \
 --lr_scheduler_gammar 0.5 \
---att_vec_size 300
-#--load_model saved_model/progressive1571365971/\{7\}_\{0.3547857410034569\}.model
+--att_vec_size 300 \
+--load_model saved_model/progressive1571893963/\{202\}_\{0.49295863818199814\}.model

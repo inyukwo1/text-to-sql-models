@@ -285,19 +285,20 @@ def epoch_train(model, optimizer, batch_size, sql_data, table_data,
     perm=np.random.permutation(len(sql_data))
     cum_loss = 0.0
     st = 0
+    total_acc = 0.
     while st < len(sql_data):
         ed = st+batch_size if st+batch_size < len(perm) else len(perm)
         examples = to_batch_seq(sql_data, table_data, perm, st, ed)
 
         optimizer.zero_grad()
 
-        loss = model.forward(examples)
-
+        loss, acc = model.forward(examples)
+        total_acc += acc
         loss.backward()
         optimizer.step()
         cum_loss += loss.data.cpu().numpy()*(ed - st)
         st = ed
-    return cum_loss / len(sql_data)
+    return cum_loss / len(sql_data), total_acc / len(sql_data)
 
 def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
     model.eval()

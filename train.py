@@ -72,11 +72,11 @@ def train(args):
                 if args.lr_scheduler:
                     scheduler.step()
                 epoch_begin = time.time()
-                loss = utils.epoch_train(model, optimizer, args.batch_size, sql_data, table_data, args,
+                loss, acc = utils.epoch_train(model, optimizer, args.batch_size, sql_data, table_data, args,
                                    loss_epoch_threshold=args.loss_epoch_threshold,
                                    sketch_loss_coefficient=args.sketch_loss_coefficient)
                 epoch_end = time.time()
-                print("training loss: %f" %(loss))
+                print("training loss: {} acc: {}".format(loss, acc))
                 if epoch % 100 == 99:
                     json_datas = utils.epoch_acc(model, args.batch_size, val_sql_data, val_table_data,
                                                  beam_size=args.beam_size)
