@@ -18,7 +18,7 @@ from nltk.stem import WordNetLemmatizer
 
 from src.dataset import Example
 from src.rule import lf
-from src.rule.semQL import  Sel, Root, Filter, N, C, T, Root1
+from src.rule.semQL import C, T, Root1
 
 wordnet_lemmatizer = WordNetLemmatizer()
 
@@ -348,6 +348,15 @@ def eval_acc(preds, sqls):
     for i, (pred, sql) in enumerate(zip(preds, sqls)):
         if pred['model_result'] == sql['rule_label']:
             best_correct += 1
+        else:
+            print("QUESTION: {}".format(sql['question']))
+            print("QUERY: {}".format(sql["query"]))
+            print("tables: {}".format(sql["table_names"]))
+            print("col set: {}".format(sql["col_set"]))
+            print("PRED: {}".format(pred['model_result']))
+            print("GOLD: {}".format(sql['rule_label']))
+            print("")
+
     print(best_correct / len(preds))
     return best_correct / len(preds)
 

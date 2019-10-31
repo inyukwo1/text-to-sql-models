@@ -14,8 +14,7 @@ import copy
 from utils import load_dataSets
 
 sys.path.append("..")
-from src.rule.semQL import Root1, Root, N, C, T, Sel, Filter
-
+from src.rule.semQL import Root1, C, T
 
 class Parser:
     def __init__(self):
@@ -53,29 +52,35 @@ class Parser:
             use_fil = True
 
         if use_fil and (use_sup or use_ord):
-            result = [Root(0)]
-            select = sql['sql']['select'][1]
-            self.colSet.add(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]]))
-            result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]])))
-            if sql['sql']['orderby'][1][0][1][1] == 0:
-                result.append(self._parser_column0(sql, select))
+            if sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]]) not in self.colSet:
+                result = [Root1(0)]
+                select = sql['sql']['select'][1]
+                self.colSet.add(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]]))
+                result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]])))
+                if sql['sql']['orderby'][1][0][1][1] == 0:
+                    result.append(self._parser_column0(sql, select))
+                else:
+                    result.append(T(sql['col_table'][sql['sql']['orderby'][1][0][1][1]]))
             else:
-                result.append(T(sql['col_table'][sql['sql']['orderby'][1][0][1][1]]))
+                result = []
             return result, ['FILTER', 'SEL']
         elif use_sup or use_ord:
-            result = [Root(2)]
-            select = sql['sql']['select'][1]
-            self.colSet.add(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]]))
-            result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]])))
-            if sql['sql']['orderby'][1][0][1][1] == 0:
-                result.append(self._parser_column0(sql, select))
+            if sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]]) not in self.colSet:
+                result = [Root1(0)]
+                select = sql['sql']['select'][1]
+                self.colSet.add(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]]))
+                result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]])))
+                if sql['sql']['orderby'][1][0][1][1] == 0:
+                    result.append(self._parser_column0(sql, select))
+                else:
+                    result.append(T(sql['col_table'][sql['sql']['orderby'][1][0][1][1]]))
             else:
-                result.append(T(sql['col_table'][sql['sql']['orderby'][1][0][1][1]]))
+                result = []
             return result, ['SEL']
         elif use_fil:
-            return [Root(1)], ['FILTER', 'SEL']
+            return [], ['FILTER', 'SEL']
         else:
-            return [Root(3)], ['SEL']
+            return [], ['SEL']
 
     def _parser_column0(self, sql, select):
         """
@@ -123,19 +128,19 @@ class Parser:
         """
         result = []
         select = sql['sql']['select'][1]
-        result.append(Sel(0))
-        result.append(N(len(select) - 1))
 
         for sel in select:
-            self.colSet.add(sql['col_set'].index(sql['names'][sel[1][1][1]]))
-            result.append(C(sql['col_set'].index(sql['names'][sel[1][1][1]])))
-            # now check for the situation with *
-            if sel[1][1][1] == 0:
-                result.append(self._parser_column0(sql, select))
-            else:
-                result.append(T(sql['col_table'][sel[1][1][1]]))
-            if not self.copy_selec:
-                self.copy_selec = [copy.deepcopy(result[-2]), copy.deepcopy(result[-1])]
+            if sql['col_set'].index(sql['names'][sel[1][1][1]]) not in self.colSet:
+                self.colSet.add(sql['col_set'].index(sql['names'][sel[1][1][1]]))
+                result.append(Root1(0))
+                result.append(C(sql['col_set'].index(sql['names'][sel[1][1][1]])))
+                # now check for the situation with *
+                if sel[1][1][1] == 0:
+                    result.append(self._parser_column0(sql, select))
+                else:
+                    result.append(T(sql['col_table'][sel[1][1][1]]))
+                if not self.copy_selec:
+                    self.copy_selec = [copy.deepcopy(result[-2]), copy.deepcopy(result[-1])]
 
         return result, None
 
@@ -148,39 +153,28 @@ class Parser:
         """
         result = []
         # check the where
-        if sql['sql']['where'] != [] and sql['sql']['having'] != []:
-            result.append(Filter(0))
 
         if sql['sql']['where'] != []:
             # check the not and/or
             if len(sql['sql']['where']) == 1:
                 result.extend(self.parse_one_condition(sql['sql']['where'][0], sql['names'], sql))
             elif len(sql['sql']['where']) == 3:
-                result.append(Filter(0))
                 result.extend(self.parse_one_condition(sql['sql']['where'][0], sql['names'], sql))
                 result.extend(self.parse_one_condition(sql['sql']['where'][2], sql['names'], sql))
             else:
                 if sql['sql']['where'][1] == 'and' and sql['sql']['where'][3] == 'and':
-                    result.append(Filter(0))
                     result.extend(self.parse_one_condition(sql['sql']['where'][0], sql['names'], sql))
-                    result.append(Filter(0))
                     result.extend(self.parse_one_condition(sql['sql']['where'][2], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][4], sql['names'], sql))
                 elif sql['sql']['where'][1] == 'and' and sql['sql']['where'][3] == 'or':
-                    result.append(Filter(0))
-                    result.append(Filter(0))
                     result.extend(self.parse_one_condition(sql['sql']['where'][0], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][2], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][4], sql['names'], sql))
                 elif sql['sql']['where'][1] == 'or' and sql['sql']['where'][3] == 'and':
-                    result.append(Filter(0))
-                    result.append(Filter(0))
                     result.extend(self.parse_one_condition(sql['sql']['where'][2], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][4], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][0], sql['names'], sql))
                 else:
-                    result.append(Filter(0))
-                    result.append(Filter(0))
                     result.extend(self.parse_one_condition(sql['sql']['where'][0], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][2], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][4], sql['names'], sql))
@@ -192,44 +186,15 @@ class Parser:
 
     def parse_one_condition(self, sql_condit, names, sql):
         result = []
-        # check if V(root)
-        nest_query = True
-        if type(sql_condit[3]) != dict:
-            nest_query = False
-
-        if sql_condit[0] == True:
-            if sql_condit[1] == 9:
-                # not like only with values
-                fil = Filter(1)
-            elif sql_condit[1] == 8:
-                # not in with Root
-                fil = Filter(2)
+        if sql['col_set'].index(sql['names'][sql_condit[2][1][1]]) not in self.colSet:
+            result.append(Root1(0))
+            self.colSet.add(sql['col_set'].index(sql['names'][sql_condit[2][1][1]]))
+            result.append(C(sql['col_set'].index(sql['names'][sql_condit[2][1][1]])))
+            if sql_condit[2][1][1] == 0:
+                select = sql['sql']['select'][1]
+                result.append(self._parser_column0(sql, select))
             else:
-                print(sql_condit[1])
-                raise NotImplementedError("not implement for the others FIL")
-        else:
-            # check for Filter (<,=,>,!=,between, >=,  <=, ...)
-            if sql_condit[1] in [1, 2, 3, 4, 5, 6, 7]:
-                if nest_query == False:
-                    fil = Filter(1)
-                else:
-                    fil = Filter(2)
-            elif sql_condit[1] == 9:
-                fil = Filter(1)
-            elif sql_condit[1] == 8:
-                fil = Filter(2)
-            else:
-                print(sql_condit[1])
-                raise NotImplementedError("not implement for the others FIL")
-
-        result.append(fil)
-        self.colSet.add(sql['col_set'].index(sql['names'][sql_condit[2][1][1]]))
-        result.append(C(sql['col_set'].index(sql['names'][sql_condit[2][1][1]])))
-        if sql_condit[2][1][1] == 0:
-            select = sql['sql']['select'][1]
-            result.append(self._parser_column0(sql, select))
-        else:
-            result.append(T(sql['col_table'][sql_condit[2][1][1]]))
+                result.append(T(sql['col_table'][sql_condit[2][1][1]]))
 
         # check for the nested value
         if type(sql_condit[3]) == dict:
@@ -262,6 +227,7 @@ class Parser:
             raise NotImplementedError("Not the right state")
 
     def full_parse(self, query):
+        self._init_rule()
         sql = query['sql']
         nest_query = {}
         nest_query['names'] = query['names']
@@ -274,28 +240,35 @@ class Parser:
         nest_query['keys'] = query['keys']
 
         if sql['intersect']:
-            results = [Root1(0)]
+            results = []
             nest_query['sql'] = sql['intersect']
             results.extend(self.parser(query))
             results.extend(self.parser(nest_query))
+            results[-3] = Root1(1)
             return results
 
         if sql['union']:
-            results = [Root1(0)]
+            results = []
             nest_query['sql'] = sql['union']
             results.extend(self.parser(query))
             results.extend(self.parser(nest_query))
+
+            results[-3] = Root1(1)
             return results
 
         if sql['except']:
-            results = [Root1(0)]
+            results = []
             nest_query['sql'] = sql['except']
             results.extend(self.parser(query))
             results.extend(self.parser(nest_query))
+
+            results[-3] = Root1(1)
             return results
 
-        results = [Root1(1)]
+        results = []
         results.extend(self.parser(query))
+        assert isinstance(results[-3], Root1)
+        results[-3] = Root1(1)
 
         return results
 
@@ -328,6 +301,7 @@ if __name__ == '__main__':
             continue
         r = parser.full_parse(datas[i])
         datas[i]['rule_label'] = " ".join([str(x) for x in r])
+
         processed_data.append(datas[i])
 
     print('Finished %s datas and failed %s datas' % (len(processed_data), len(datas) - len(processed_data)))

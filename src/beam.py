@@ -145,52 +145,12 @@ class Beams(object):
 
         return new_hyp
 
-    def infer_n(self):
-        if len(self.actions) > 4:
-            prev_action = self.actions[-3]
-            if isinstance(prev_action, semQL.Filter):
-                if prev_action.id_c > 11:
-                    # Nested Query, only select 1 column
-                    return ['N A']
-            if self.actions[0].id_c != 3:
-                return [self.actions[3].production]
-        return semQL.N._init_grammar()
-
     @property
     def completed(self):
         return True if self.get_availableClass() is None else False
 
     @property
     def is_valid(self):
-        actions = self.actions
-        return self.check_sel_valid(actions)
-
-    def check_sel_valid(self, actions):
-        find_sel = False
-        sel_actions = list()
-        for ac in actions:
-            if type(ac) == semQL.Sel:
-                find_sel = True
-            elif find_sel and type(ac) in [semQL.N, semQL.T, semQL.C]:
-                if type(ac) not in [semQL.N]:
-                    sel_actions.append(ac)
-            elif find_sel and type(ac) not in [semQL.N, semQL.T, semQL.C]:
-                break
-
-        if find_sel is False:
-            return True
-
-        # not the complete sel lf
-        if len(sel_actions) % 3 != 0:
-            return True
-
-        sel_string = list()
-        for i in range(len(sel_actions) // 3):
-            if (sel_actions[i * 3 + 0].id_c, sel_actions[i * 3 + 1].id_c, sel_actions[i * 3 + 2].id_c) in sel_string:
-                return False
-            else:
-                sel_string.append(
-                    (sel_actions[i * 3 + 0].id_c, sel_actions[i * 3 + 1].id_c, sel_actions[i * 3 + 2].id_c))
         return True
 
 

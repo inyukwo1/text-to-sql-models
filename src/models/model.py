@@ -72,8 +72,6 @@ class IRNet(BasicModel):
 
         self.att_project = nn.Linear(args.hidden_size + args.type_embed_size, args.hidden_size)
 
-        self.N_embed = nn.Embedding(len(define_rule.N._init_grammar()), args.action_embed_size)
-
         self.read_out_act = F.tanh if args.readout == 'non_linear' else nn_utils.identity
 
         self.query_vec_to_action_embed = nn.Linear(args.att_vec_size, args.action_embed_size,
@@ -96,7 +94,6 @@ class IRNet(BasicModel):
         # initial the embedding layers
         nn.init.xavier_normal_(self.production_embed.weight.data)
         nn.init.xavier_normal_(self.type_embed.weight.data)
-        nn.init.xavier_normal_(self.N_embed.weight.data)
         print('Use Column Pointer: ', True if self.use_column_pointer else False)
         
     def forward(self, examples):
@@ -136,11 +133,7 @@ class IRNet(BasicModel):
                         # get the last action
                         # This is the action embedding
                         action_tm1 = example.sketch[t - 1]
-                        if type(action_tm1) in [define_rule.Root1,
-                                                define_rule.Root,
-                                                define_rule.Sel,
-                                                define_rule.Filter,
-                                                define_rule.N]:
+                        if type(action_tm1) in [define_rule.Root1]:
                             a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
                         else:
                             print(action_tm1, 'only for sketch')
@@ -234,12 +227,7 @@ class IRNet(BasicModel):
                 for e_id, example in enumerate(examples):
                     if t < len(example.tgt_actions):
                         action_tm1 = example.tgt_actions[t - 1]
-                        if type(action_tm1) in [define_rule.Root1,
-                                                define_rule.Root,
-                                                define_rule.Sel,
-                                                define_rule.Filter,
-                                                define_rule.N
-                                                ]:
+                        if type(action_tm1) in [define_rule.Root1]:
 
                             a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
 
@@ -375,11 +363,7 @@ class IRNet(BasicModel):
                 pre_types = []
                 for e_id, hyp in enumerate(beams):
                     action_tm1 = hyp.actions[-1]
-                    if type(action_tm1) in [define_rule.Root1,
-                                            define_rule.Root,
-                                            define_rule.Sel,
-                                            define_rule.Filter,
-                                            define_rule.N]:
+                    if type(action_tm1) in [define_rule.Root1]:
                         a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
                     else:
                         raise ValueError('unknown action %s' % action_tm1)
@@ -409,11 +393,7 @@ class IRNet(BasicModel):
             new_hyp_meta = []
             for hyp_id, hyp in enumerate(beams):
                 action_class = hyp.get_availableClass()
-                if action_class in [define_rule.Root1,
-                                    define_rule.Root,
-                                    define_rule.Sel,
-                                    define_rule.Filter,
-                                    define_rule.N]:
+                if action_class in [define_rule.Root1]:
                     possible_productions = self.grammar.get_production(action_class)
                     for possible_production in possible_productions:
                         prod_id = self.grammar.prod2id[possible_production]
@@ -549,11 +529,7 @@ class IRNet(BasicModel):
                 pre_types = []
                 for e_id, hyp in enumerate(beams):
                     action_tm1 = hyp.actions[-1]
-                    if type(action_tm1) in [define_rule.Root1,
-                                            define_rule.Root,
-                                            define_rule.Sel,
-                                            define_rule.Filter,
-                                            define_rule.N]:
+                    if type(action_tm1) in [define_rule.Root1]:
 
                         a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
                         hyp.sketch_step += 1
