@@ -140,9 +140,7 @@ class IRNet(BasicModel):
                                                 define_rule.Root,
                                                 define_rule.Sel,
                                                 define_rule.Filter,
-                                                define_rule.Sup,
-                                                define_rule.N,
-                                                define_rule.Order]:
+                                                define_rule.N]:
                             a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
                         else:
                             print(action_tm1, 'only for sketch')
@@ -240,9 +238,7 @@ class IRNet(BasicModel):
                                                 define_rule.Root,
                                                 define_rule.Sel,
                                                 define_rule.Filter,
-                                                define_rule.Sup,
-                                                define_rule.N,
-                                                define_rule.Order,
+                                                define_rule.N
                                                 ]:
 
                             a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
@@ -252,8 +248,6 @@ class IRNet(BasicModel):
                                 a_tm1_embed = self.column_rnn_input(table_embedding[e_id, action_tm1.id_c])
                             elif isinstance(action_tm1, define_rule.T):
                                 a_tm1_embed = self.column_rnn_input(schema_embedding[e_id, action_tm1.id_c])
-                            elif isinstance(action_tm1, define_rule.A):
-                                a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
                             else:
                                 print(action_tm1, 'not implement')
                                 quit()
@@ -333,9 +327,6 @@ class IRNet(BasicModel):
                     elif isinstance(action_t, define_rule.T):
                         act_prob_t_i = table_weights[e_id, action_t.id_c]
                         action_probs[e_id].append(act_prob_t_i)
-                    elif isinstance(action_t, define_rule.A):
-                        act_prob_t_i = apply_rule_prob[e_id, self.grammar.prod2id[action_t.production]]
-                        action_probs[e_id].append(act_prob_t_i)
                     else:
                         pass
             h_tm1 = (h_t, cell_t)
@@ -388,9 +379,7 @@ class IRNet(BasicModel):
                                             define_rule.Root,
                                             define_rule.Sel,
                                             define_rule.Filter,
-                                            define_rule.Sup,
-                                            define_rule.N,
-                                            define_rule.Order]:
+                                            define_rule.N]:
                         a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
                     else:
                         raise ValueError('unknown action %s' % action_tm1)
@@ -424,9 +413,7 @@ class IRNet(BasicModel):
                                     define_rule.Root,
                                     define_rule.Sel,
                                     define_rule.Filter,
-                                    define_rule.Sup,
-                                    define_rule.N,
-                                    define_rule.Order]:
+                                    define_rule.N]:
                     possible_productions = self.grammar.get_production(action_class)
                     for possible_production in possible_productions:
                         prod_id = self.grammar.prod2id[possible_production]
@@ -566,9 +553,7 @@ class IRNet(BasicModel):
                                             define_rule.Root,
                                             define_rule.Sel,
                                             define_rule.Filter,
-                                            define_rule.Sup,
-                                            define_rule.N,
-                                            define_rule.Order]:
+                                            define_rule.N]:
 
                         a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
                         hyp.sketch_step += 1
@@ -576,8 +561,6 @@ class IRNet(BasicModel):
                         a_tm1_embed = self.column_rnn_input(table_embedding[0, action_tm1.id_c])
                     elif isinstance(action_tm1, define_rule.T):
                         a_tm1_embed = self.column_rnn_input(schema_embedding[0, action_tm1.id_c])
-                    elif isinstance(action_tm1, define_rule.A):
-                        a_tm1_embed = self.production_embed.weight[self.grammar.prod2id[action_tm1.production]]
                     else:
                         raise ValueError('unknown action %s' % action_tm1)
 
@@ -638,20 +621,7 @@ class IRNet(BasicModel):
 
             new_hyp_meta = []
             for hyp_id, hyp in enumerate(beams):
-                # TODO: should change this
-                if type(padding_sketch[t]) == define_rule.A:
-                    possible_productions = self.grammar.get_production(define_rule.A)
-                    for possible_production in possible_productions:
-                        prod_id = self.grammar.prod2id[possible_production]
-                        prod_score = apply_rule_log_prob[hyp_id, prod_id]
-
-                        new_hyp_score = hyp.score + prod_score.data.cpu()
-                        meta_entry = {'action_type': define_rule.A, 'prod_id': prod_id,
-                                      'score': prod_score, 'new_hyp_score': new_hyp_score,
-                                      'prev_hyp_id': hyp_id}
-                        new_hyp_meta.append(meta_entry)
-
-                elif type(padding_sketch[t]) == define_rule.C:
+                if type(padding_sketch[t]) == define_rule.C:
                     for col_id, _ in enumerate(batch.table_sents[0]):
                         col_sel_score = column_selection_log_prob[hyp_id, col_id]
                         new_hyp_score = hyp.score + col_sel_score.data.cpu()

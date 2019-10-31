@@ -64,7 +64,7 @@ class Example:
                 self.sketch.append(ta)
             '''
             for ta in self.truth_actions:
-                if isinstance(ta, define_rule.C) or isinstance(ta, define_rule.T) or isinstance(ta, define_rule.A):
+                if isinstance(ta, define_rule.C) or isinstance(ta, define_rule.T):
                     continue
                 self.sketch.append(ta)
 

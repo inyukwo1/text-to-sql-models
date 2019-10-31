@@ -14,7 +14,8 @@ import copy
 from utils import load_dataSets
 
 sys.path.append("..")
-from src.rule.semQL import Root1, Root, N, A, C, T, Sel, Sup, Filter, Order
+from src.rule.semQL import Root1, Root, N, C, T, Sel, Filter
+
 
 class Parser:
     def __init__(self):
@@ -33,11 +34,15 @@ class Parser:
         :return: [R(), states]
         """
         use_sup, use_ord, use_fil = True, True, False
+        if 'orderBy' in sql['sql']:
+            sql['sql']['orderby'] = sql['sql']['orderBy']
+        if 'groupBy' in sql['sql']:
+            sql['sql']['groupby'] = sql['sql']['groupBy']
 
         if sql['sql']['limit'] == None:
             use_sup = False
 
-        if sql['sql']['orderBy'] == []:
+        if sql['sql']['orderby'] == []:
             use_ord = False
         elif sql['sql']['limit'] != None:
             use_ord = False
@@ -47,18 +52,30 @@ class Parser:
                         sql['sql']['having'] != []:
             use_fil = True
 
-        if use_fil and use_sup:
-            return [Root(0)], ['FILTER', 'SUP', 'SEL']
-        elif use_fil and use_ord:
-            return [Root(1)], ['ORDER', 'FILTER', 'SEL']
-        elif use_sup:
-            return [Root(2)], ['SUP', 'SEL']
+        if use_fil and (use_sup or use_ord):
+            result = [Root(0)]
+            select = sql['sql']['select'][1]
+            self.colSet.add(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]]))
+            result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]])))
+            if sql['sql']['orderby'][1][0][1][1] == 0:
+                result.append(self._parser_column0(sql, select))
+            else:
+                result.append(T(sql['col_table'][sql['sql']['orderby'][1][0][1][1]]))
+            return result, ['FILTER', 'SEL']
+        elif use_sup or use_ord:
+            result = [Root(2)]
+            select = sql['sql']['select'][1]
+            self.colSet.add(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]]))
+            result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderby'][1][0][1][1]])))
+            if sql['sql']['orderby'][1][0][1][1] == 0:
+                result.append(self._parser_column0(sql, select))
+            else:
+                result.append(T(sql['col_table'][sql['sql']['orderby'][1][0][1][1]]))
+            return result, ['SEL']
         elif use_fil:
-            return [Root(3)], ['FILTER', 'SEL']
-        elif use_ord:
-            return [Root(4)], ['ORDER', 'SEL']
+            return [Root(1)], ['FILTER', 'SEL']
         else:
-            return [Root(5)], ['SEL']
+            return [Root(3)], ['SEL']
 
     def _parser_column0(self, sql, select):
         """
@@ -89,8 +106,8 @@ class Parser:
             table_set = table_set - other_set
             if len(table_set) == 1:
                 return T(list(table_set)[0])
-            elif len(table_set) == 0 and sql['sql']['groupBy'] != []:
-                return T(sql['col_table'][sql['sql']['groupBy'][0][1]])
+            elif len(table_set) == 0 and sql['sql']['groupby'] != []:
+                return T(sql['col_table'][sql['sql']['groupby'][0][1]])
             else:
                 question = sql['question']
                 self.sel_result.append(question)
@@ -110,7 +127,6 @@ class Parser:
         result.append(N(len(select) - 1))
 
         for sel in select:
-            result.append(A(sel[0]))
             self.colSet.add(sql['col_set'].index(sql['names'][sel[1][1][1]]))
             result.append(C(sql['col_set'].index(sql['names'][sel[1][1][1]])))
             # now check for the situation with *
@@ -121,31 +137,6 @@ class Parser:
             if not self.copy_selec:
                 self.copy_selec = [copy.deepcopy(result[-2]), copy.deepcopy(result[-1])]
 
-        return result, None
-
-    def _parse_sup(self, sql):
-        """
-        parsing the sql by the grammar
-        Sup ::= Most A | Least A
-        A ::= agg column table
-        :return: [Sup(), states]
-        """
-        result = []
-        select = sql['sql']['select'][1]
-        if sql['sql']['limit'] == None:
-            return result, None
-        if sql['sql']['orderBy'][0] == 'desc':
-            result.append(Sup(0))
-        else:
-            result.append(Sup(1))
-
-        result.append(A(sql['sql']['orderBy'][1][0][1][0]))
-        self.colSet.add(sql['col_set'].index(sql['names'][sql['sql']['orderBy'][1][0][1][1]]))
-        result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderBy'][1][0][1][1]])))
-        if sql['sql']['orderBy'][1][0][1][1] == 0:
-            result.append(self._parser_column0(sql, select))
-        else:
-            result.append(T(sql['col_table'][sql['sql']['orderBy'][1][0][1][1]]))
         return result, None
 
     def _parse_filter(self, sql):
@@ -165,10 +156,7 @@ class Parser:
             if len(sql['sql']['where']) == 1:
                 result.extend(self.parse_one_condition(sql['sql']['where'][0], sql['names'], sql))
             elif len(sql['sql']['where']) == 3:
-                if sql['sql']['where'][1] == 'or':
-                    result.append(Filter(1))
-                else:
-                    result.append(Filter(0))
+                result.append(Filter(0))
                 result.extend(self.parse_one_condition(sql['sql']['where'][0], sql['names'], sql))
                 result.extend(self.parse_one_condition(sql['sql']['where'][2], sql['names'], sql))
             else:
@@ -179,20 +167,20 @@ class Parser:
                     result.extend(self.parse_one_condition(sql['sql']['where'][2], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][4], sql['names'], sql))
                 elif sql['sql']['where'][1] == 'and' and sql['sql']['where'][3] == 'or':
-                    result.append(Filter(1))
+                    result.append(Filter(0))
                     result.append(Filter(0))
                     result.extend(self.parse_one_condition(sql['sql']['where'][0], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][2], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][4], sql['names'], sql))
                 elif sql['sql']['where'][1] == 'or' and sql['sql']['where'][3] == 'and':
-                    result.append(Filter(1))
+                    result.append(Filter(0))
                     result.append(Filter(0))
                     result.extend(self.parse_one_condition(sql['sql']['where'][2], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][4], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][0], sql['names'], sql))
                 else:
-                    result.append(Filter(1))
-                    result.append(Filter(1))
+                    result.append(Filter(0))
+                    result.append(Filter(0))
                     result.extend(self.parse_one_condition(sql['sql']['where'][0], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][2], sql['names'], sql))
                     result.extend(self.parse_one_condition(sql['sql']['where'][4], sql['names'], sql))
@@ -201,38 +189,6 @@ class Parser:
         if sql['sql']['having'] != []:
             result.extend(self.parse_one_condition(sql['sql']['having'][0], sql['names'], sql))
         return result, None
-
-    def _parse_order(self, sql):
-        """
-        parsing the sql by the grammar
-        Order ::= asc A | desc A
-        A ::= agg column table
-        :return: [Order(), states]
-        """
-        result = []
-
-        if 'order' not in sql['query_toks_no_value'] or 'by' not in sql['query_toks_no_value']:
-            return result, None
-        elif 'limit' in sql['query_toks_no_value']:
-            return result, None
-        else:
-            if sql['sql']['orderBy'] == []:
-                return result, None
-            else:
-                select = sql['sql']['select'][1]
-                if sql['sql']['orderBy'][0] == 'desc':
-                    result.append(Order(0))
-                else:
-                    result.append(Order(1))
-                result.append(A(sql['sql']['orderBy'][1][0][1][0]))
-                self.colSet.add(sql['col_set'].index(sql['names'][sql['sql']['orderBy'][1][0][1][1]]))
-                result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderBy'][1][0][1][1]])))
-                if sql['sql']['orderBy'][1][0][1][1] == 0:
-                    result.append(self._parser_column0(sql, select))
-                else:
-                    result.append(T(sql['col_table'][sql['sql']['orderBy'][1][0][1][1]]))
-        return result, None
-
 
     def parse_one_condition(self, sql_condit, names, sql):
         result = []
@@ -244,32 +200,29 @@ class Parser:
         if sql_condit[0] == True:
             if sql_condit[1] == 9:
                 # not like only with values
-                fil = Filter(10)
+                fil = Filter(1)
             elif sql_condit[1] == 8:
                 # not in with Root
-                fil = Filter(19)
+                fil = Filter(2)
             else:
                 print(sql_condit[1])
                 raise NotImplementedError("not implement for the others FIL")
         else:
             # check for Filter (<,=,>,!=,between, >=,  <=, ...)
-            single_map = {1:8,2:2,3:5,4:4,5:7,6:6,7:3}
-            nested_map = {1:15,2:11,3:13,4:12,5:16,6:17,7:14}
             if sql_condit[1] in [1, 2, 3, 4, 5, 6, 7]:
                 if nest_query == False:
-                    fil = Filter(single_map[sql_condit[1]])
+                    fil = Filter(1)
                 else:
-                    fil = Filter(nested_map[sql_condit[1]])
+                    fil = Filter(2)
             elif sql_condit[1] == 9:
-                fil = Filter(9)
+                fil = Filter(1)
             elif sql_condit[1] == 8:
-                fil = Filter(18)
+                fil = Filter(2)
             else:
                 print(sql_condit[1])
                 raise NotImplementedError("not implement for the others FIL")
 
         result.append(fil)
-        result.append(A(sql_condit[2][1][0]))
         self.colSet.add(sql['col_set'].index(sql['names'][sql_condit[2][1][1]]))
         result.append(C(sql['col_set'].index(sql['names'][sql_condit[2][1][1]])))
         if sql_condit[2][1][1] == 0:
@@ -302,14 +255,9 @@ class Parser:
         if state == 'SEL':
             return self._parse_select(sql)
 
-        elif state == 'SUP':
-            return self._parse_sup(sql)
-
         elif state == 'FILTER':
             return self._parse_filter(sql)
 
-        elif state == 'ORDER':
-            return self._parse_order(sql)
         else:
             raise NotImplementedError("Not the right state")
 
@@ -333,20 +281,20 @@ class Parser:
             return results
 
         if sql['union']:
-            results = [Root1(1)]
+            results = [Root1(0)]
             nest_query['sql'] = sql['union']
             results.extend(self.parser(query))
             results.extend(self.parser(nest_query))
             return results
 
         if sql['except']:
-            results = [Root1(2)]
+            results = [Root1(0)]
             nest_query['sql'] = sql['except']
             results.extend(self.parser(query))
             results.extend(self.parser(nest_query))
             return results
 
-        results = [Root1(3)]
+        results = [Root1(1)]
         results.extend(self.parser(query))
 
         return results

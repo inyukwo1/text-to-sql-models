@@ -20,14 +20,9 @@ class Grammar(object):
         self.type2id = {}
         self._init_grammar(Sel)
         self._init_grammar(Root)
-        self._init_grammar(Sup)
         self._init_grammar(Filter)
-        self._init_grammar(Order)
         self._init_grammar(N)
         self._init_grammar(Root1)
-
-        if not self.is_sketch:
-            self._init_grammar(A)
 
         self._init_id2prod()
         self.type2id[C] = self.type_id
@@ -68,7 +63,7 @@ class Action(object):
             if x not in Keywords:
                 rule_type = eval(x)
                 if is_sketch:
-                    if rule_type is not A:
+                    if rule_type is not C and rule_type is not T:
                         actions.append(rule_type)
                 else:
                     actions.append(rule_type)
@@ -93,10 +88,8 @@ class Root1(Action):
     def _init_grammar(self):
         # TODO: should add Root grammar to this
         self.grammar_dict = {
-            0: 'Root1 intersect Root Root',
-            1: 'Root1 union Root Root',
-            2: 'Root1 except Root Root',
-            3: 'Root1 Root',
+            0: 'Root1 Root Root',
+            1: 'Root1 Root',
         }
         self.production_id = {}
         for id_x, value in enumerate(self.grammar_dict.values()):
@@ -123,12 +116,10 @@ class Root(Action):
     def _init_grammar(self):
         # TODO: should add Root grammar to this
         self.grammar_dict = {
-            0: 'Root Sel Sup Filter',
-            1: 'Root Sel Filter Order',
-            2: 'Root Sel Sup',
-            3: 'Root Sel Filter',
-            4: 'Root Sel Order',
-            5: 'Root Sel'
+            0: 'Root C Sel Filter',
+            1: 'Root Sel Filter',
+            2: 'Root C Sel',
+            3: 'Root Sel'
         }
         self.production_id = {}
         for id_x, value in enumerate(self.grammar_dict.values()):
@@ -157,11 +148,11 @@ class N(Action):
     @classmethod
     def _init_grammar(self):
         self.grammar_dict = {
-            0: 'N A',
-            1: 'N A A',
-            2: 'N A A A',
-            3: 'N A A A A',
-            4: 'N A A A A A'
+            0: 'N C',
+            1: 'N C C',
+            2: 'N C C C',
+            3: 'N C C C C',
+            4: 'N C C C C C'
         }
         self.production_id = {}
         for id_x, value in enumerate(self.grammar_dict.values()):
@@ -212,42 +203,6 @@ class T(Action):
         return 'T(' + str(self.id_c) + ')'
 
 
-class A(Action):
-    """
-    Aggregator
-    """
-    def __init__(self, id_c, parent=None):
-        super(A, self).__init__()
-
-        self.parent = parent
-        self.id_c = id_c
-        self._init_grammar()
-        self.production = self.grammar_dict[id_c]
-
-    @classmethod
-    def _init_grammar(self):
-        # TODO: should add Root grammar to this
-        self.grammar_dict = {
-            0: 'A none C',
-            1: 'A max C',
-            2: "A min C",
-            3: "A count C",
-            4: "A sum C",
-            5: "A avg C"
-        }
-        self.production_id = {}
-        for id_x, value in enumerate(self.grammar_dict.values()):
-            self.production_id[value] = id_x
-
-        return self.grammar_dict.values()
-
-    def __str__(self):
-        return 'A(' + str(self.id_c) + ')'
-
-    def __repr__(self):
-        return 'A(' + str(self.grammar_dict[self.id_c].split(' ')[1]) + ')'
-
-
 class Sel(Action):
     """
     Select
@@ -277,6 +232,7 @@ class Sel(Action):
     def __repr__(self):
         return 'Sel(' + str(self.id_c) + ')'
 
+
 class Filter(Action):
     """
     Filter
@@ -293,29 +249,9 @@ class Filter(Action):
     def _init_grammar(self):
         self.grammar_dict = {
             # 0: "Filter 1"
-            0: 'Filter and Filter Filter',
-            1: 'Filter or Filter Filter',
-            2: 'Filter = A',
-            3: 'Filter != A',
-            4: 'Filter < A',
-            5: 'Filter > A',
-            6: 'Filter <= A',
-            7: 'Filter >= A',
-            8: 'Filter between A',
-            9: 'Filter like A',
-            10: 'Filter not_like A',
-            # now begin root
-            11: 'Filter = A Root',
-            12: 'Filter < A Root',
-            13: 'Filter > A Root',
-            14: 'Filter != A Root',
-            15: 'Filter between A Root',
-            16: 'Filter >= A Root',
-            17: 'Filter <= A Root',
-            # now for In
-            18: 'Filter in A Root',
-            19: 'Filter not_in A Root'
-
+            0: 'Filter Filter Filter',
+            1: 'Filter C',
+            2: 'Filter C Root',
         }
         self.production_id = {}
         for id_x, value in enumerate(self.grammar_dict.values()):
@@ -328,68 +264,6 @@ class Filter(Action):
 
     def __repr__(self):
         return 'Filter(' + str(self.grammar_dict[self.id_c]) + ')'
-
-
-class Sup(Action):
-    """
-    Superlative
-    """
-    def __init__(self, id_c, parent=None):
-        super(Sup, self).__init__()
-
-        self.parent = parent
-        self.id_c = id_c
-        self._init_grammar()
-        self.production = self.grammar_dict[id_c]
-
-    @classmethod
-    def _init_grammar(self):
-        self.grammar_dict = {
-            0: 'Sup des A',
-            1: 'Sup asc A',
-        }
-        self.production_id = {}
-        for id_x, value in enumerate(self.grammar_dict.values()):
-            self.production_id[value] = id_x
-
-        return self.grammar_dict.values()
-
-    def __str__(self):
-        return 'Sup(' + str(self.id_c) + ')'
-
-    def __repr__(self):
-        return 'Sup(' + str(self.id_c) + ')'
-
-
-class Order(Action):
-    """
-    Order
-    """
-    def __init__(self, id_c, parent=None):
-        super(Order, self).__init__()
-
-        self.parent = parent
-        self.id_c = id_c
-        self._init_grammar()
-        self.production = self.grammar_dict[id_c]
-
-    @classmethod
-    def _init_grammar(self):
-        self.grammar_dict = {
-            0: 'Order des A',
-            1: 'Order asc A',
-        }
-        self.production_id = {}
-        for id_x, value in enumerate(self.grammar_dict.values()):
-            self.production_id[value] = id_x
-
-        return self.grammar_dict.values()
-
-    def __str__(self):
-        return 'Order(' + str(self.id_c) + ')'
-
-    def __repr__(self):
-        return 'Order(' + str(self.id_c) + ')'
 
 
 if __name__ == '__main__':

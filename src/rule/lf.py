@@ -11,12 +11,11 @@ import json
 import numpy as np
 
 from src.rule import semQL as define_rule
-from src.rule.semQL import Sup, Sel, Order, Root, Filter, A, N, C, T, Root1
+from src.rule.semQL import Sel, Root, Filter, N, C, T, Root1
 
 
 def _build_single_filter(lf, f):
     # No conjunction
-    agg = lf.pop(0)
     column = lf.pop(0)
     if len(lf) == 0:
         table = None
@@ -25,21 +24,17 @@ def _build_single_filter(lf, f):
         if not isinstance(table, define_rule.T):
             lf.insert(0, table)
             table = None
-    assert isinstance(agg, define_rule.A) and isinstance(column, define_rule.C)
-    if len(f.production.split()) == 3:
-        f.add_children(agg)
-        agg.set_parent(f)
-        agg.add_children(column)
-        column.set_parent(agg)
+    assert isinstance(column, define_rule.C)
+    if len(f.production.split()) == 2:
+        f.add_children(column)
+        column.set_parent(f)
         if table is not None:
             column.add_children(table)
             table.set_parent(column)
     else:
         # Subquery
-        f.add_children(agg)
-        agg.set_parent(f)
-        agg.add_children(column)
-        column.set_parent(agg)
+        f.add_children(column)
+        column.set_parent(f)
         if table is not None:
             column.add_children(table)
             table.set_parent(column)
@@ -51,11 +46,11 @@ def _build_single_filter(lf, f):
 def _build_filter(lf, root_filter):
     assert isinstance(root_filter, define_rule.Filter)
     op = root_filter.production.split()[1]
-    if op == 'and' or op == 'or':
+    if op == 'Filter':
         for i in range(2):
             child = lf.pop(0)
             op = child.production.split()[1]
-            if op == 'and' or op == 'or':
+            if op == 'Filter':
                 _f = _build_filter(lf, child)
                 root_filter.add_children(_f)
                 _f.set_parent(root_filter)
@@ -85,7 +80,6 @@ def _build(lf):
             sel_instance.add_children(c_instance)
             assert isinstance(c_instance, define_rule.N)
             for i in range(c_instance.id_c + 1):
-                agg = lf.pop(0)
                 column = lf.pop(0)
                 if len(lf) == 0:
                     table = None
@@ -94,39 +88,19 @@ def _build(lf):
                     if not isinstance(table, define_rule.T):
                         lf.insert(0, table)
                         table = None
-                assert isinstance(agg, define_rule.A) and isinstance(column, define_rule.C)
-                c_instance.add_children(agg)
-                agg.set_parent(c_instance)
-                agg.add_children(column)
-                column.set_parent(agg)
+                assert  isinstance(column, define_rule.C)
+                c_instance.add_children(column)
+                column.set_parent(c_instance)
                 if table is not None:
                     column.add_children(table)
                     table.set_parent(column)
 
-        elif isinstance(c_instance, define_rule.Sup) or isinstance(c_instance, define_rule.Order):
+        elif isinstance(c_instance, define_rule.Filter):
+            _build_filter(lf, c_instance)
             root.add_children(c_instance)
             c_instance.set_parent(root)
 
-            agg = lf.pop(0)
-            column = lf.pop(0)
-            if len(lf) == 0:
-                table = None
-            else:
-                table = lf.pop(0)
-                if not isinstance(table, define_rule.T):
-                    lf.insert(0, table)
-                    table = None
-            assert isinstance(agg, define_rule.A) and isinstance(column, define_rule.C)
-            c_instance.add_children(agg)
-            agg.set_parent(c_instance)
-            agg.add_children(column)
-            column.set_parent(agg)
-            if table is not None:
-                column.add_children(table)
-                table.set_parent(column)
-
-        elif isinstance(c_instance, define_rule.Filter):
-            _build_filter(lf, c_instance)
+        elif isinstance(c_instance, define_rule.C):
             root.add_children(c_instance)
             c_instance.set_parent(root)
 
@@ -136,7 +110,7 @@ def _build(lf):
 def build_tree(lf):
     root = lf.pop(0)
     assert isinstance(root, define_rule.Root1)
-    if root.id_c == 0 or root.id_c == 1 or root.id_c == 2:
+    if root.id_c == 0:
         root_1 = _build(lf)
         root_2 = _build(lf)
         root.add_children(root_1)
@@ -165,7 +139,7 @@ def verify(node):
         return
     children_num = len(node.children)
     if isinstance(node, Root1):
-        if node.id_c == 0 or node.id_c == 1 or node.id_c == 2:
+        if node.id_c == 0:
             assert children_num == 2
         else:
             assert children_num == 1
@@ -173,14 +147,14 @@ def verify(node):
         assert children_num == len(node.production.split()) - 1
     elif isinstance(node, N):
         assert children_num == int(node.id_c) + 1
-    elif isinstance(node, Sup) or isinstance(node, Order) or isinstance(node, Sel):
+    elif isinstance(node, Sel):
         assert children_num == 1
     elif isinstance(node, Filter):
         op = node.production.split()[1]
-        if op == 'and' or op == 'or':
+        if op == 'Filter':
             assert children_num == 2
         else:
-            if len(node.production.split()) == 3:
+            if len(node.production.split()) == 2:
                 assert children_num == 1
             else:
                 assert children_num == 2
@@ -202,7 +176,7 @@ def label_matrix(lf, matrix, node):
 def build_adjacency_matrix(lf, symmetry=False):
     _lf = list()
     for rule in lf:
-        if isinstance(rule, A) or isinstance(rule, C) or isinstance(rule, T):
+        if isinstance(rule, C) or isinstance(rule, T):
             continue
         _lf.append(rule)
     length = len(_lf)

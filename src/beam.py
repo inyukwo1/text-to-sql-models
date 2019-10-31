@@ -171,10 +171,10 @@ class Beams(object):
         for ac in actions:
             if type(ac) == semQL.Sel:
                 find_sel = True
-            elif find_sel and type(ac) in [semQL.N, semQL.T, semQL.C, semQL.A]:
+            elif find_sel and type(ac) in [semQL.N, semQL.T, semQL.C]:
                 if type(ac) not in [semQL.N]:
                     sel_actions.append(ac)
-            elif find_sel and type(ac) not in [semQL.N, semQL.T, semQL.C, semQL.A]:
+            elif find_sel and type(ac) not in [semQL.N, semQL.T, semQL.C]:
                 break
 
         if find_sel is False:

@@ -18,7 +18,7 @@ from nltk.stem import WordNetLemmatizer
 
 from src.dataset import Example
 from src.rule import lf
-from src.rule.semQL import Sup, Sel, Order, Root, Filter, A, N, C, T, Root1
+from src.rule.semQL import  Sel, Root, Filter, N, C, T, Root1
 
 wordnet_lemmatizer = WordNetLemmatizer()
 
@@ -372,8 +372,8 @@ def load_dataset(dataset_dir, use_small=False):
     print("Loading from datasets...")
 
     TABLE_PATH = os.path.join(dataset_dir, "tables.json")
-    TRAIN_PATH = os.path.join(dataset_dir, "train.json")
-    DEV_PATH = os.path.join(dataset_dir, "dev.json")
+    TRAIN_PATH = os.path.join(dataset_dir, "train_tc.json")
+    DEV_PATH = os.path.join(dataset_dir, "dev_tc.json")
     with open(TABLE_PATH) as inf:
         print("Loading data from %s"%TABLE_PATH)
         table_data = json.load(inf)

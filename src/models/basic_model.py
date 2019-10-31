@@ -91,17 +91,15 @@ class BasicModel(nn.Module):
             padding_result.append(action)
             if type(action) == define_rule.N:
                 for _ in range(action.id_c + 1):
-                    padding_result.append(define_rule.A(0))
                     padding_result.append(define_rule.C(0))
                     padding_result.append(define_rule.T(0))
-            elif type(action) == define_rule.Filter and 'A' in action.production:
-                padding_result.append(define_rule.A(0))
+            elif type(action) == define_rule.Filter and 'C' in action.production:
                 padding_result.append(define_rule.C(0))
                 padding_result.append(define_rule.T(0))
-            elif type(action) == define_rule.Order or type(action) == define_rule.Sup:
-                padding_result.append(define_rule.A(0))
+            elif type(action) == define_rule.Root and 'C' in action.production:
                 padding_result.append(define_rule.C(0))
                 padding_result.append(define_rule.T(0))
+
 
         return padding_result
 
