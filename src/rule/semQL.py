@@ -18,10 +18,6 @@ class Grammar(object):
         self.is_sketch = is_sketch
         self.prod2id = {}
         self.type2id = {}
-        self._init_grammar(Sel)
-        self._init_grammar(Root)
-        self._init_grammar(Filter)
-        self._init_grammar(N)
         self._init_grammar(Root1)
 
         self._init_id2prod()
@@ -86,10 +82,9 @@ class Root1(Action):
 
     @classmethod
     def _init_grammar(self):
-        # TODO: should add Root grammar to this
         self.grammar_dict = {
-            0: 'Root1 Root Root',
-            1: 'Root1 Root',
+            0: 'Root1 C Root1',
+            1: 'Root1 C'
         }
         self.production_id = {}
         for id_x, value in enumerate(self.grammar_dict.values()):
@@ -103,68 +98,6 @@ class Root1(Action):
     def __repr__(self):
         return 'Root1(' + str(self.id_c) + ')'
 
-
-class Root(Action):
-    def __init__(self, id_c, parent=None):
-        super(Root, self).__init__()
-        self.parent = parent
-        self.id_c = id_c
-        self._init_grammar()
-        self.production = self.grammar_dict[id_c]
-
-    @classmethod
-    def _init_grammar(self):
-        # TODO: should add Root grammar to this
-        self.grammar_dict = {
-            0: 'Root C Sel Filter',
-            1: 'Root Sel Filter',
-            2: 'Root C Sel',
-            3: 'Root Sel'
-        }
-        self.production_id = {}
-        for id_x, value in enumerate(self.grammar_dict.values()):
-            self.production_id[value] = id_x
-
-        return self.grammar_dict.values()
-
-    def __str__(self):
-        return 'Root(' + str(self.id_c) + ')'
-
-    def __repr__(self):
-        return 'Root(' + str(self.id_c) + ')'
-
-
-class N(Action):
-    """
-    Number of Columns
-    """
-    def __init__(self, id_c, parent=None):
-        super(N, self).__init__()
-        self.parent = parent
-        self.id_c = id_c
-        self._init_grammar()
-        self.production = self.grammar_dict[id_c]
-
-    @classmethod
-    def _init_grammar(self):
-        self.grammar_dict = {
-            0: 'N C',
-            1: 'N C C',
-            2: 'N C C C',
-            3: 'N C C C C',
-            4: 'N C C C C C'
-        }
-        self.production_id = {}
-        for id_x, value in enumerate(self.grammar_dict.values()):
-            self.production_id[value] = id_x
-
-        return self.grammar_dict.values()
-
-    def __str__(self):
-        return 'N(' + str(self.id_c) + ')'
-
-    def __repr__(self):
-        return 'N(' + str(self.id_c) + ')'
 
 class C(Action):
     """
@@ -203,68 +136,5 @@ class T(Action):
         return 'T(' + str(self.id_c) + ')'
 
 
-class Sel(Action):
-    """
-    Select
-    """
-    def __init__(self, id_c, parent=None):
-        super(Sel, self).__init__()
-
-        self.parent = parent
-        self.id_c = id_c
-        self._init_grammar()
-        self.production = self.grammar_dict[id_c]
-
-    @classmethod
-    def _init_grammar(self):
-        self.grammar_dict = {
-            0: 'Sel N',
-        }
-        self.production_id = {}
-        for id_x, value in enumerate(self.grammar_dict.values()):
-            self.production_id[value] = id_x
-
-        return self.grammar_dict.values()
-
-    def __str__(self):
-        return 'Sel(' + str(self.id_c) + ')'
-
-    def __repr__(self):
-        return 'Sel(' + str(self.id_c) + ')'
-
-
-class Filter(Action):
-    """
-    Filter
-    """
-    def __init__(self, id_c, parent=None):
-        super(Filter, self).__init__()
-
-        self.parent = parent
-        self.id_c = id_c
-        self._init_grammar()
-        self.production = self.grammar_dict[id_c]
-
-    @classmethod
-    def _init_grammar(self):
-        self.grammar_dict = {
-            # 0: "Filter 1"
-            0: 'Filter Filter Filter',
-            1: 'Filter C',
-            2: 'Filter C Root',
-        }
-        self.production_id = {}
-        for id_x, value in enumerate(self.grammar_dict.values()):
-            self.production_id[value] = id_x
-
-        return self.grammar_dict.values()
-
-    def __str__(self):
-        return 'Filter(' + str(self.id_c) + ')'
-
-    def __repr__(self):
-        return 'Filter(' + str(self.grammar_dict[self.id_c]) + ')'
-
-
 if __name__ == '__main__':
-    print(list(Root._init_grammar()))
+    print(list(Root1._init_grammar()))
