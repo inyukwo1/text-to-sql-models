@@ -21,6 +21,7 @@ class ActionInfo(object):
         self.action = action
         self.frontier_prod = None
         self.frontier_field = None
+        self.att_weight = None
 
         # for GenToken actions only
         self.copy_from_src = False
@@ -142,6 +143,7 @@ class Beams(object):
         new_hyp.t = self.t
         new_hyp.sketch_step = self.sketch_step
         new_hyp.sketch_attention_history = copy.copy(self.sketch_attention_history)
+        new_hyp.action_infos = copy.copy(self.action_infos)
 
         return new_hyp
 

@@ -19,6 +19,7 @@ from nltk.stem import WordNetLemmatizer
 from src.dataset import Example
 from src.rule import lf
 from src.rule.semQL import C, T, Root1
+import random
 
 wordnet_lemmatizer = WordNetLemmatizer()
 
@@ -120,7 +121,7 @@ def get_col_table_dict(tab_cols, tab_ids, sql):
     return col_table_dict
 
 
-def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, col_set_iter, sql):
+def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, col_set_iter, tab_set_type, tab_set_iter, sql):
 
     for count_q, t_q in enumerate(question_arg_type):
         t = t_q[0]
@@ -128,7 +129,12 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
             continue
         elif t == 'table':
             one_hot_type[count_q][0] = 1
-            question_arg[count_q] = ['table'] + question_arg[count_q]
+            try:
+                tab_set_type[tab_set_iter.index(question_arg[count_q])][1] = 5
+                question_arg[count_q] = ['table'] + question_arg[count_q]
+            except:
+                print(tab_set_iter, question_arg[count_q])
+                raise RuntimeError("not in tab set")
         elif t == 'col':
             one_hot_type[count_q][1] = 1
             try:
@@ -184,10 +190,12 @@ def process(sql, table):
     one_hot_type = np.zeros((len(question_arg_type), 6))
 
     col_set_type = np.zeros((len(col_set_iter), 4))
+    tab_set_type = np.zeros((len(table_names), 4))
 
     process_dict['col_set_iter'] = col_set_iter
     process_dict['q_iter_small'] = q_iter_small
     process_dict['col_set_type'] = col_set_type
+    process_dict['tab_set_type'] = tab_set_type
     process_dict['question_arg'] = question_arg
     process_dict['question_arg_type'] = question_arg_type
     process_dict['one_hot_type'] = one_hot_type
@@ -234,8 +242,15 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
                 if ori in col_:
                     process_dict['col_set_type'][c_id][0] += 1
 
+        for t_id, tab_ in enumerate(process_dict['table_names']):
+            for q_id, ori in enumerate(process_dict['q_iter_small']):
+                if ori in tab_:
+                    process_dict['tab_set_type'][t_id][0] += 1
+
         schema_linking(process_dict['question_arg'], process_dict['question_arg_type'],
-                       process_dict['one_hot_type'], process_dict['col_set_type'], process_dict['col_set_iter'], sql)
+                       process_dict['one_hot_type'], process_dict['col_set_type'], process_dict['col_set_iter'],
+                       process_dict['tab_set_type'], process_dict['table_names'],
+                       sql)
 
         col_table_dict = get_col_table_dict(process_dict['tab_cols'], process_dict['tab_ids'], sql)
         table_col_name = get_table_colNames(process_dict['tab_ids'], process_dict['col_iter'])
@@ -259,6 +274,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
             sql=sql['query'],
             one_hot_type=process_dict['one_hot_type'],
             col_hot_type=process_dict['col_set_type'],
+            tab_hot_type=process_dict['tab_set_type'],
             table_names=process_dict['table_names'],
             table_len=len(process_dict['table_names']),
             col_table_dict=col_table_dict,
@@ -277,6 +293,29 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
     else:
         return examples
 
+
+def fix_actions(example, parse_actions):
+    example_actions = example.tgt_actions
+    parse_action_set = set()
+    for idx in range(0, len(parse_actions), 3):
+        parse_action_set.add(str(parse_actions[idx + 1]) + str(parse_actions[idx + 2]))
+    extra_actions = []
+    for idx in range(0, len(example_actions), 3):
+        rule_str = str(example_actions[idx + 1]) + str(example_actions[idx + 2])
+        if rule_str not in parse_action_set:
+            extra_actions.append((example_actions[idx + 1], example_actions[idx + 2]))
+    random.shuffle(extra_actions)
+
+    for idx in range(0, len(example_actions), 3):
+        rule_str = str(example_actions[idx + 1]) + str(example_actions[idx + 2])
+        if rule_str not in parse_action_set:
+            c_action, t_action = extra_actions.pop()
+            example_actions[idx + 1] = c_action
+            example_actions[idx + 2] = t_action
+
+
+
+
 def epoch_train(model, optimizer, batch_size, sql_data, table_data,
                 args, epoch=0, loss_epoch_threshold=20, sketch_loss_coefficient=0.2):
     model.train()
@@ -287,6 +326,12 @@ def epoch_train(model, optimizer, batch_size, sql_data, table_data,
     while st < len(sql_data):
         ed = st+batch_size if st+batch_size < len(perm) else len(perm)
         examples = to_batch_seq(sql_data, table_data, perm, st, ed)
+        for example in examples:
+            parse_result = model.parse(example, beam_size=3)
+            parse_result = parse_result[0]
+            parse_actions = parse_result[0].actions
+            fix_actions(example, parse_actions)
+
         optimizer.zero_grad()
 
         score = model.forward(examples)
@@ -323,11 +368,17 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
             results_all = model.parse(example, beam_size=beam_size)
             results = results_all[0]
             list_preds = []
+            list_attentions = []
             try:
 
                 pred = " ".join([str(x) for x in results[0].actions])
                 for x in results:
                     list_preds.append(" ".join(str(x.actions)))
+                    att_weights = []
+                    for action_info in x.action_infos:
+                        att_weights.append(action_info.att_weight.data.cpu().numpy())
+                    list_attentions.append(att_weights)
+
             except Exception as e:
                 # print('Epoch Acc: ', e)
                 # print(results)
@@ -338,6 +389,13 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
 
             simple_json['sketch_result'] =  " ".join(str(x) for x in results_all[1])
             simple_json['model_result'] = pred
+            simple_json['model_result_set'] = set()
+            for idx in range(0, len(results[0].actions), 3):
+                simple_json['model_result_set'].add(str(results[0].actions[idx + 1]) + str(results[0].actions[idx + 2]))
+            attention_list = [att.tolist() for att in list_attentions[0]]
+            simple_json['attention'] = attention_list
+            simple_json['col_set_type'] = example.col_hot_type
+            simple_json['tab_set_type'] = example.tab_hot_type
 
             json_datas.append(simple_json)
         st = ed
@@ -346,16 +404,32 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
 def eval_acc(preds, sqls):
     sketch_correct, best_correct = 0, 0
     for i, (pred, sql) in enumerate(zip(preds, sqls)):
-        if pred['model_result'] == sql['rule_label']:
-            best_correct += 1
-        else:
-            print("QUESTION: {}".format(sql['question']))
-            print("QUERY: {}".format(sql["query"]))
-            print("tables: {}".format(sql["table_names"]))
-            print("col set: {}".format(sql["col_set"]))
-            print("PRED: {}".format(pred['model_result']))
-            print("GOLD: {}".format(sql['rule_label']))
-            print("")
+        try:
+            rule_label = [eval(x) for x in sql['rule_label'].strip().split(' ')]
+            rule_set = set()
+            for idx in range(0, len(rule_label), 3):
+                rule_set.add(str(rule_label[idx + 1]) + str(rule_label[idx + 2]))
+            if pred['model_result_set'] == rule_set:
+                best_correct += 1
+            else:
+                print("QUESTION: {}".format(sql['question_arg']))
+                print("QUESTION: {}".format(sql['question_arg_type']))
+                print("QUERY: {}".format(sql["query"]))
+                print("tables: {}".format(sql["table_names"]))
+                print("{}".format(pred["tab_set_type"].transpose((1, 0))))
+                print("col set: {}".format(sql["col_set"]))
+                print("{}".format(pred["col_set_type"].transpose((1, 0))))
+                print("Att: ")
+                for i in range(len(pred['attention'])):
+                    print("[", end='')
+                    for j in range(len(pred['attention'][i])):
+                        print("{0:.4f}".format(pred['attention'][i][j]), end=' ')
+                    print("]")
+                print("PRED: {}".format(pred['model_result']))
+                print("GOLD: {}".format(sql['rule_label']))
+                print("")
+        except:
+            pass
 
     print(best_correct / len(preds))
     return best_correct / len(preds)

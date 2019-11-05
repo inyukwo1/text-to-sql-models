@@ -301,6 +301,7 @@ if __name__ == '__main__':
             continue
         r = parser.full_parse(datas[i])
         datas[i]['rule_label'] = " ".join([str(x) for x in r])
+        rule_label = [eval(x) for x in datas[i]['rule_label'].strip().split(' ')]
 
         processed_data.append(datas[i])
 

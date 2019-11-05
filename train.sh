@@ -14,7 +14,6 @@ CUDA_VISIBLE_DEVICES=$devices python -u train.py --dataset ./data \
 --save ${save_name} \
 --embed_size 300 \
 --sentence_features \
---column_pointer \
 --hidden_size 300 \
 --lr_scheduler \
 --lr_scheduler_gammar 0.5 \
