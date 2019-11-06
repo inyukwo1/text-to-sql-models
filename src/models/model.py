@@ -93,6 +93,18 @@ class IRNet(BasicModel):
 
         self.table_pointer_net = PointerNet(args.hidden_size, args.col_embed_size, attention_type=args.column_att)
 
+        self.similar_sentences_adder = nn.Sequential(
+            nn.Linear(args.hidden_size, args.hidden_size),
+            nn.Dropout(args.dropout),
+            nn.ReLU(),
+        )
+        self.similar_sentences = nn.Sequential(
+            nn.Linear(args.hidden_size, args.hidden_size),
+            nn.Dropout(args.dropout),
+            nn.ReLU(),
+            nn.Linear(args.hidden_size, 1),
+        )
+
         # initial the embedding layers
         nn.init.xavier_normal_(self.production_embed.weight.data)
         nn.init.xavier_normal_(self.type_embed.weight.data)
@@ -344,6 +356,42 @@ class IRNet(BasicModel):
             [torch.stack(action_probs_i, dim=0).log().sum() for action_probs_i in action_probs], dim=0)
 
         return [sketch_prob_var, lf_prob_var]
+
+    def forward2(self, sentences_1, sentences_1_len, sentences_1_sort_idx, sentences_2, sentences_2_len, sentences_2_sort_idx, gold):
+        unsort_idx_1 = dict()
+        unsort_idx_2 = dict()
+        new_sentences_1 = []
+        new_sentences_1_len = []
+        new_sentences_2 = []
+        new_sentences_2_len = []
+        for ord, idx in enumerate(sentences_1_sort_idx):
+            new_sentences_1.append(sentences_1[idx])
+            new_sentences_1_len.append(sentences_1_len[idx])
+            unsort_idx_1[idx] = ord
+        for ord, idx in enumerate(sentences_2_sort_idx):
+            new_sentences_2.append(sentences_2[idx])
+            new_sentences_2_len.append(sentences_2_len[idx])
+            unsort_idx_2[idx] = ord
+
+
+
+        src_1_encodings, (last_state_1, last_cell_1) = self.encode(new_sentences_1, new_sentences_1_len, None)
+        src_2_encodings, (last_state_2, last_cell_2) = self.encode(new_sentences_2, new_sentences_2_len, None)
+
+        re_last_cell_1 = []
+        for idx in range(len(sentences_1)):
+            re_last_cell_1.append(last_cell_1[unsort_idx_1[idx]])
+        re_last_cell_1 = torch.stack(re_last_cell_1)
+        re_last_cell_2 = []
+        for idx in range(len(sentences_2)):
+            re_last_cell_2.append(last_cell_2[unsort_idx_2[idx]])
+        re_last_cell_2 = torch.stack(re_last_cell_2)
+
+        encoded_1 = self.similar_sentences_adder(re_last_cell_1)
+        encoded_2 = self.similar_sentences_adder(re_last_cell_2)
+        out = self.similar_sentences(encoded_1 + encoded_2).squeeze(1)
+        return torch.nn.functional.binary_cross_entropy_with_logits(out, gold)
+
 
     def parse(self, examples, beam_size=5):
         """
