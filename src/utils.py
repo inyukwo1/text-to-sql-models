@@ -332,6 +332,12 @@ def epoch_train(model, optimizer, batch_size, sql_data, table_data,
         else:
             loss = loss_lf + loss_sketch
         indexes = random.sample(range(len(sentences_1)), batch_size)
+        remove_indexes = []
+        for idx in indexes:
+            if len(sentences_1[idx]) == 0 or len(sentences_2[idx]) == 0:
+                remove_indexes.append(idx)
+        for idx in remove_indexes:
+            indexes.remove(idx)
         sen_1 = [sentences_1[idx] for idx in indexes]
         sen_1_len = [len(sentences_1[idx]) for idx in indexes]
         sen_1_sort_idx = sorted(range(len(sen_1)), key=lambda k: -sen_1_len[k])
