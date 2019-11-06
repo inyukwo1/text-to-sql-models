@@ -152,6 +152,11 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
         elif t == 'value':
             one_hot_type[count_q][5] = 1
             question_arg[count_q] = ['value'] + question_arg[count_q]
+        elif t == 'db':
+            one_hot_type[count_q][6] = 1
+            c_cand = [wordnet_lemmatizer.lemmatize(v).lower() for v in t_q[1].split(" ")]
+            # question_arg[count_q] = ['db'] + question_arg[count_q]
+            col_set_type[col_set_iter.index(c_cand)][4] = 5
         else:
             if len(t_q) == 1:
                 for col_probase in t_q:
@@ -187,10 +192,10 @@ def process(sql, table):
     q_iter_small = [wordnet_lemmatizer.lemmatize(x).lower() for x in origin_sql]
     question_arg = copy.deepcopy(sql['question_arg'])
     question_arg_type = sql['question_arg_type']
-    one_hot_type = np.zeros((len(question_arg_type), 6))
+    one_hot_type = np.zeros((len(question_arg_type), 7))
 
-    col_set_type = np.zeros((len(col_set_iter), 4))
-    tab_set_type = np.zeros((len(table_names), 4))
+    col_set_type = np.zeros((len(col_set_iter), 5))
+    tab_set_type = np.zeros((len(table_names), 5))
 
     process_dict['col_set_iter'] = col_set_iter
     process_dict['q_iter_small'] = q_iter_small

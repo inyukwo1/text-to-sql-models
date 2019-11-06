@@ -62,8 +62,8 @@ class IRNet(BasicModel):
         self.prob_att = nn.Linear(args.att_vec_size, 1)
         self.prob_len = nn.Linear(1, 1)
 
-        self.col_type = nn.Linear(4, args.col_embed_size)
-        self.tab_type = nn.Linear(4, args.col_embed_size)
+        self.col_type = nn.Linear(5, args.col_embed_size)
+        self.tab_type = nn.Linear(5, args.col_embed_size)
         self.sketch_encoder = nn.LSTM(args.action_embed_size, args.action_embed_size // 2, bidirectional=True,
                                       batch_first=True)
 
