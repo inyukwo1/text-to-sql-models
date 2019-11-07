@@ -90,7 +90,7 @@ def pred_col_mask(value, max_len):
     for v_ind, v_val in enumerate(value):
         for v in v_val:
             mask[v_ind][v] = 0
-    mask = torch.ByteTensor(mask)
+    mask = torch.BoolTensor(mask)
     return mask.cuda()
 
 

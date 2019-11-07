@@ -18,6 +18,6 @@ CUDA_VISIBLE_DEVICES=$devices python -u eval.py --dataset ./data \
 --lr_scheduler \
 --lr_scheduler_gammar 0.5 \
 --att_vec_size 300 \
---load_model ./saved_model/table_column_v6_tab_type1572934344/best_model.model
+--load_model ./saved_model/table_column_v7_use_db1573017548//best_model.model
 
 #python sem2SQL.py --data_path ./data --input_path predict_lf.json --output_path ${save_name}

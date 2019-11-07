@@ -14,6 +14,7 @@ import sqlite3
 from utils import symbol_filter, re_lemma, fully_part_header, group_header, partial_header, num2year, group_symbol, group_values, group_digital, group_db
 from utils import AGG, wordnet_lemmatizer
 from utils import load_dataSets
+from pattern.en import lemma
 
 def process_datas(datas, args):
     """
@@ -60,14 +61,16 @@ def process_datas(datas, args):
             col_value_set = dict()
             for table in tables:
                 for col in schema[table]:
+                    cursor.execute("SELECT \"{}\" FROM \"{}\"".format(col, table))
                     col_idx = schema_dict[db_id]["only_cnames"].index(col)
                     col = entry["names"][col_idx]
                     value_set = set()
-                    cursor.execute("SELECT \"{}\" FROM \"{}\"".format(col, table))
                     try:
                         for val in cursor.fetchall():
                             if isinstance(val[0], str):
                                 value_set.add(str(val[0].lower()))
+                                value_set.add(lemma(str(val[0].lower())))
+
                     except:
                         print("not utf8 value")
                     if col in col_value_set:
@@ -112,7 +115,6 @@ def process_datas(datas, args):
         tok_concol = []
         type_concol = []
         nltk_result = nltk.pos_tag(question_toks)
-
         while idx < num_toks:
 
             # check for aggregation
