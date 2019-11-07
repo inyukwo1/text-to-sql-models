@@ -6,7 +6,7 @@ save_name=$2
 python -u train.py --dataset ./data \
 --glove_embed_path ./data/glove.42B.300d.txt \
 --cuda \
---epoch 50 \
+--epoch 500 \
 --loss_epoch_threshold 50 \
 --sketch_loss_coefficie 1.0 \
 --beam_size 1 \
@@ -18,4 +18,5 @@ python -u train.py --dataset ./data \
 --hidden_size 300 \
 --lr_scheduler \
 --lr_scheduler_gammar 0.5 \
---att_vec_size 300
+--att_vec_size 300 \
+--load_model saved_model/use_wikianswer1573038033/best_model.model

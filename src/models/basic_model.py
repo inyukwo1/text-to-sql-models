@@ -68,6 +68,30 @@ class BasicModel(nn.Module):
 
         return src_encodings, (last_state, last_cell)
 
+    def encode2(self, src_sents_var, src_sents_len, q_onehot_project=None):
+        """
+        encode the source sequence
+        :return:
+            src_encodings: Variable(batch_size, src_sent_len, hidden_size * 2)
+            last_state, last_cell: Variable(batch_size, hidden_size)
+        """
+        src_token_embed = self.gen_x_batch(src_sents_var)
+
+        if q_onehot_project is not None:
+            src_token_embed = torch.cat([src_token_embed, q_onehot_project], dim=-1)
+
+        packed_src_token_embed = pack_padded_sequence(src_token_embed, src_sents_len, batch_first=True)
+        # src_encodings: (tgt_query_len, batch_size, hidden_size)
+        src_encodings, (last_state, last_cell) = self.encoder_lstm2(packed_src_token_embed)
+        src_encodings, _ = pad_packed_sequence(src_encodings, batch_first=True)
+        # src_encodings: (batch_size, tgt_query_len, hidden_size)
+        # src_encodings = src_encodings.permute(1, 0, 2)
+        # (batch_size, hidden_size * 2)
+        last_state = torch.cat([last_state[0], last_state[1]], -1)
+        last_cell = torch.cat([last_cell[0], last_cell[1]], -1)
+
+        return src_encodings, (last_state, last_cell)
+
     def input_type(self, values_list):
         B = len(values_list)
         val_len = []

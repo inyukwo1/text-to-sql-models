@@ -21,37 +21,26 @@ from src.rule import lf
 from src.rule.semQL import Sup, Sel, Order, Root, Filter, A, N, C, T, Root1
 import csv
 import random
+from tqdm import tqdm
 wordnet_lemmatizer = WordNetLemmatizer()
 
 
-def preprocess_quora():
-    with open('data/quora_duplicate_questions.tsv', 'r') as f:
-        quora = list(csv.reader(f, delimiter='\t'))[1:]
+def preprocess_entry(wikianswer_entry):
+    sen_1 = wikianswer_entry[0]
+    sen_new_1 = []
+    for word in [wordnet_lemmatizer.lemmatize(x.lower()) for x in sen_1.split(" ") if x.lower() != 'the']:
+        sen_new_1.append([word])
+    sen_2 = wikianswer_entry[1]
+    sen_new_2 = []
+    for word in [wordnet_lemmatizer.lemmatize(x.lower()) for x in sen_2.split(" ") if x.lower() != 'the']:
+        sen_new_2.append([word])
 
-    sentences_1 = []
-    sentences_2 = []
-    gold = []
-
-    for entry in quora:
-        sen_1 = entry[3]
-        sen_new_1 = []
-        for word in [wordnet_lemmatizer.lemmatize(x.lower()) for x in sen_1 if x.lower() != 'the']:
-            sen_new_1.append([word])
-        sen_2 = entry[4]
-        sen_new_2 = []
-        for word in [wordnet_lemmatizer.lemmatize(x.lower()) for x in sen_2 if x.lower() != 'the']:
-            sen_new_2.append([word])
-        sentences_1.append(sen_1)
-        sentences_2.append(sen_2)
-        if entry[5] == '0':
-            gold.append(0)
-        elif entry[5] == '1':
-            gold.append(1)
-        else:
-            assert False
-
-    return sentences_1, sentences_2, gold
-
+    mapping = dict()
+    maps = wikianswer_entry[2].split(" ")
+    for map in maps:
+        map = map.split("-")
+        mapping[int(map[1])] = int(map[0])
+    return sen_1, sen_2, mapping
 
 def idx2seq(seq, indices, cur_idx):
     if indices[cur_idx]:
@@ -310,7 +299,9 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
 def epoch_train(model, optimizer, batch_size, sql_data, table_data,
                 args, epoch=0, loss_epoch_threshold=20, sketch_loss_coefficient=0.2):
     model.train()
-    sentences_1, sentences_2, gold = preprocess_quora()
+
+    with open('data/word_alignments.txt', 'r') as f:
+        wikianswers = list(csv.reader(f, delimiter='\t'))
     # shuffe
     perm=np.random.permutation(len(sql_data))
     cum_loss = 0.0
@@ -331,24 +322,25 @@ def epoch_train(model, optimizer, batch_size, sql_data, table_data,
             loss = loss_lf + sketch_loss_coefficient * loss_sketch
         else:
             loss = loss_lf + loss_sketch
-        indexes = random.sample(range(len(sentences_1)), batch_size)
-        remove_indexes = []
+        indexes = random.sample(range(len(wikianswers)), batch_size)
+        sentences_1 = []
+        sentences_1_len = []
+        sentences_2 = []
+        sentences_2_len = []
+        gold = []
         for idx in indexes:
-            if len(sentences_1[idx]) == 0 or len(sentences_2[idx]) == 0:
-                remove_indexes.append(idx)
-        for idx in remove_indexes:
-            indexes.remove(idx)
-        sen_1 = [sentences_1[idx] for idx in indexes]
-        sen_1_len = [len(sentences_1[idx]) for idx in indexes]
-        sen_1_sort_idx = sorted(range(len(sen_1)), key=lambda k: -sen_1_len[k])
-        sen_2 = [sentences_2[idx] for idx in indexes]
-        sen_2_len = [len(sentences_2[idx]) for idx in indexes]
-        sen_2_sort_idx = sorted(range(len(sen_2)), key=lambda k: -sen_2_len[k])
-        gold_tensor = [gold[idx] for idx in indexes]
-        gold_tensor = torch.Tensor(gold_tensor)
-        if torch.cuda.is_available():
-            gold_tensor = gold_tensor.cuda()
-        loss += model.forward2(sen_1, sen_1_len, sen_1_sort_idx, sen_2, sen_2_len, sen_2_sort_idx, gold_tensor) * 0.2
+            sen_1, sen_2, gold_dict = preprocess_entry(wikianswers[idx])
+            if len(sen_1) == 0 or len(sen_2) == 0:
+                continue
+            sentences_1.append(sen_1)
+            sentences_1_len.append(len(sen_1))
+            sentences_2.append(sen_2)
+            sentences_2_len.append(len(sen_2))
+            gold.append(gold_dict)
+
+        sen_1_sort_idx = sorted(range(len(sentences_1)), key=lambda k: -sentences_1_len[k])
+        sen_2_sort_idx = sorted(range(len(sentences_2)), key=lambda k: -sentences_2_len[k])
+        loss += model.forward2(sentences_1, sentences_1_len, sen_1_sort_idx, sentences_2, sentences_2_len, sen_2_sort_idx, gold) * 0.2
 
         loss.backward()
         optimizer.step()

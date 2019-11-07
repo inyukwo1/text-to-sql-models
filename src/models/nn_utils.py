@@ -46,7 +46,7 @@ def length_array_to_mask_tensor(length_array, cuda=False, value=None):
                 if value[b_id][c_id] == [3]:
                     mask[b_id][c_id] = 1
 
-    mask = torch.ByteTensor(mask)
+    mask = torch.BoolTensor(mask)
     return mask.cuda() if cuda else mask
 
 
@@ -59,7 +59,7 @@ def table_dict_to_mask_tensor(length_array, table_dict, cuda=False ):
         for tt in ta_val:
             mask[i][tt] = 0
 
-    mask = torch.ByteTensor(mask)
+    mask = torch.BoolTensor(mask)
     return mask.cuda() if cuda else mask
 
 
@@ -90,7 +90,7 @@ def pred_col_mask(value, max_len):
     for v_ind, v_val in enumerate(value):
         for v in v_val:
             mask[v_ind][v] = 0
-    mask = torch.ByteTensor(mask)
+    mask = torch.BoolTensor(mask)
     return mask.cuda()
 
 
