@@ -26,6 +26,7 @@ def init_arg_parser():
 
     arg_parser.add_argument('--lstm', choices=['lstm', 'lstm_with_dropout', 'parent_feed'], default='lstm')
 
+    arg_parser.add_argument('--bert', type=int, default=-1)
     arg_parser.add_argument('--load_model', default=None, type=str, help='load a pre-trained model')
     arg_parser.add_argument('--glove_embed_path', default="glove.42B.300d.txt", type=str)
 
@@ -60,6 +61,7 @@ def init_arg_parser():
     arg_parser.add_argument('--max_epoch', default=-1, type=int, help='maximum number of training epoches')
     arg_parser.add_argument('--optimizer', default='Adam', type=str, help='optimizer')
     arg_parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
+    arg_parser.add_argument('--bert_lr', default=0.0001, type=float, help='bert learning rate')
 
     arg_parser.add_argument('--dataset', default="./data", type=str)
 
