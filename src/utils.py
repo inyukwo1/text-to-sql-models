@@ -155,7 +155,7 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
         elif t == 'db':
             one_hot_type[count_q][6] = 1
             c_cand = [wordnet_lemmatizer.lemmatize(v).lower() for v in t_q[1].split(" ")]
-            # question_arg[count_q] = ['db'] + question_arg[count_q]
+            question_arg[count_q] = ['db'] + question_arg[count_q]
             col_set_type[col_set_iter.index(c_cand)][4] = 5
         else:
             if len(t_q) == 1:
@@ -408,7 +408,12 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
 
 def eval_acc(preds, sqls):
     sketch_correct, best_correct = 0, 0
-    for i, (pred, sql) in enumerate(zip(preds, sqls)):
+    perm = list(range(len(preds)))
+    random.shuffle(perm)
+    for q_idx in range(len(preds)):
+        perm_idx = perm[q_idx]
+        pred = preds[perm_idx]
+        sql = sqls[perm_idx]
         try:
             rule_label = [eval(x) for x in sql['rule_label'].strip().split(' ')]
             rule_set = set()
@@ -417,12 +422,14 @@ def eval_acc(preds, sqls):
             if pred['model_result_set'] == rule_set:
                 best_correct += 1
             else:
+                print("IDX: {}, origin IDX: {}".format(q_idx, perm_idx))
+                print("DB ID: {}".format(sql['db_id']))
                 print("QUESTION: {}".format(sql['question_arg']))
                 print("QUESTION: {}".format(sql['question_arg_type']))
                 print("QUERY: {}".format(sql["query"]))
-                print("tables: {}".format(sql["table_names"]))
+                print("tables: {}".format(list(zip(range(len(sql["table_names"])), sql["table_names"]))))
                 print("{}".format(pred["tab_set_type"].transpose((1, 0))))
-                print("col set: {}".format(sql["col_set"]))
+                print("col set: {}".format(list(zip(range(len(sql["col_set"])), sql["col_set"]))))
                 print("{}".format(pred["col_set_type"].transpose((1, 0))))
                 print("Att: ")
                 for i in range(len(pred['attention'])):

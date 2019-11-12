@@ -68,6 +68,7 @@ class IRNet(BasicModel):
                                       batch_first=True)
 
         self.production_embed = nn.Embedding(len(grammar.prod2id), args.action_embed_size)
+        self.src_type_embed = nn.Embedding(4, args.hidden_size)
         self.type_embed = nn.Embedding(len(grammar.type2id), args.type_embed_size)
         self.production_readout_b = nn.Parameter(torch.FloatTensor(len(grammar.prod2id)).zero_())
 
