@@ -15,6 +15,7 @@ import numpy as np
 import os
 import torch
 from nltk.stem import WordNetLemmatizer
+from tqdm import tqdm
 
 from src.dataset import Example
 from src.rule import lf
@@ -128,12 +129,12 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
             continue
         elif t == 'table':
             one_hot_type[count_q][0] = 1
-            question_arg[count_q] = ['table'] + question_arg[count_q]
+            question_arg[count_q] = ['[table]'] + question_arg[count_q]
         elif t == 'col':
             one_hot_type[count_q][1] = 1
             try:
                 col_set_type[col_set_iter.index(question_arg[count_q])][1] = 5
-                question_arg[count_q] = ['column'] + question_arg[count_q]
+                question_arg[count_q] = ['[column]'] + question_arg[count_q]
             except:
                 print(col_set_iter, question_arg[count_q])
                 raise RuntimeError("not in col set")
@@ -145,7 +146,7 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
             one_hot_type[count_q][4] = 1
         elif t == 'value':
             one_hot_type[count_q][5] = 1
-            question_arg[count_q] = ['value'] + question_arg[count_q]
+            question_arg[count_q] = ['[value]'] + question_arg[count_q]
         else:
             if len(t_q) == 1:
                 for col_probase in t_q:
@@ -153,7 +154,7 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
                         continue
                     try:
                         col_set_type[sql['col_set'].index(col_probase)][2] = 5
-                        question_arg[count_q] = ['value'] + question_arg[count_q]
+                        question_arg[count_q] = ['[value]'] + question_arg[count_q]
                     except:
                         print(sql['col_set'], col_probase)
                         raise RuntimeError('not in col')
@@ -177,6 +178,7 @@ def process(sql, table):
     tab_ids = [col[0] for col in table['column_names']]
 
     col_set_iter = [[wordnet_lemmatizer.lemmatize(v).lower() for v in x.split(' ')] for x in sql['col_set']]
+    tab_set_iter = [[wordnet_lemmatizer.lemmatize(v).lower() for v in x.split(' ')] for x in sql['table_names']]
     col_iter = [[wordnet_lemmatizer.lemmatize(v).lower() for v in x.split(" ")] for x in tab_cols]
     q_iter_small = [wordnet_lemmatizer.lemmatize(x).lower() for x in origin_sql]
     question_arg = copy.deepcopy(sql['question_arg'])
@@ -195,6 +197,7 @@ def process(sql, table):
     process_dict['tab_ids'] = tab_ids
     process_dict['col_iter'] = col_iter
     process_dict['table_names'] = table_names
+    process_dict['tab_set_iter'] = tab_set_iter
 
     return process_dict
 
@@ -256,6 +259,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
             col_num=len(process_dict['col_set_iter']),
             vis_seq=(sql['question'], process_dict['col_set_iter'], sql['query']),
             tab_cols=process_dict['col_set_iter'],
+            tab_iter=process_dict['tab_set_iter'],
             sql=sql['query'],
             one_hot_type=process_dict['one_hot_type'],
             col_hot_type=process_dict['col_set_type'],
@@ -269,6 +273,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
             tgt_actions=rule_label
         )
         example.sql_json = copy.deepcopy(sql)
+        example.db_id = sql['db_id']
         examples.append(example)
 
     if is_train:
@@ -277,19 +282,29 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
     else:
         return examples
 
-def epoch_train(model, optimizer, batch_size, sql_data, table_data,
+def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_data,
                 args, epoch=0, loss_epoch_threshold=20, sketch_loss_coefficient=0.2):
     model.train()
     # shuffe
+    new_sql_data = []
+    for sql in sql_data:
+        if sql["db_id"] != "baseball_1":
+            new_sql_data.append(sql)
+
+    sql_data = new_sql_data
     perm=np.random.permutation(len(sql_data))
     cum_loss = 0.0
     st = 0
-    while st < len(sql_data):
+    for st in tqdm(range(0, len(sql_data), batch_size)):
         ed = st+batch_size if st+batch_size < len(perm) else len(perm)
         examples = to_batch_seq(sql_data, table_data, perm, st, ed)
         optimizer.zero_grad()
+        if bert_optimizer:
+            bert_optimizer.zero_grad()
 
         score = model.forward(examples)
+        if score[0] is None:
+            continue
         loss_sketch = -score[0]
         loss_lf = -score[1]
 
@@ -305,8 +320,10 @@ def epoch_train(model, optimizer, batch_size, sql_data, table_data,
         if args.clip_grad > 0.:
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad)
         optimizer.step()
+        if bert_optimizer:
+            bert_optimizer.step()
+        print("Loss: {}".format(loss.data.cpu().numpy()*(ed - st)))
         cum_loss += loss.data.cpu().numpy()*(ed - st)
-        st = ed
     return cum_loss / len(sql_data)
 
 def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
@@ -320,10 +337,10 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
         examples = to_batch_seq(sql_data, table_data, perm, st, ed,
                                                         is_train=False)
         for example in examples:
-            results_all = model.parse(example, beam_size=beam_size)
-            results = results_all[0]
-            list_preds = []
             try:
+                results_all = model.parse(example, beam_size=beam_size)
+                results = results_all[0]
+                list_preds = []
 
                 pred = " ".join([str(x) for x in results[0].actions])
                 for x in results:
