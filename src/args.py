@@ -60,8 +60,8 @@ def init_arg_parser():
     arg_parser.add_argument('--clip_grad', default=5., type=float, help='clip gradients')
     arg_parser.add_argument('--max_epoch', default=-1, type=int, help='maximum number of training epoches')
     arg_parser.add_argument('--optimizer', default='Adam', type=str, help='optimizer')
-    arg_parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
-    arg_parser.add_argument('--bert_lr', default=0.0001, type=float, help='bert learning rate')
+    arg_parser.add_argument('--lr', default=0.0001, type=float, help='learning rate')
+    arg_parser.add_argument('--bert_lr', default=0.00001, type=float, help='bert learning rate')
 
     arg_parser.add_argument('--dataset', default="./data", type=str)
 

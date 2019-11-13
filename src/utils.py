@@ -322,6 +322,7 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
         optimizer.step()
         if bert_optimizer:
             bert_optimizer.step()
+        print("Loss: {}".format(loss.data.cpu().numpy()*(ed - st)))
         cum_loss += loss.data.cpu().numpy()*(ed - st)
     return cum_loss / len(sql_data)
 
