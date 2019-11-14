@@ -21,6 +21,19 @@ from src.dataset import Example
 from src.rule import lf
 from src.rule.semQL import C, T, Root1
 import random
+from gensim.models import FastText
+
+
+class FasttextTogether:
+    def __init__(self, glove, fasttext):
+        self.glove = glove
+        self.fasttext = fasttext
+
+    def __getitem__(self, item):
+        glove_ret = self.glove.get(item, self.glove['unk'])
+        fast_ret = self.fasttext[item]
+        return np.concatenate((glove_ret, fast_ret), axis=None)
+
 
 wordnet_lemmatizer = WordNetLemmatizer()
 
@@ -69,7 +82,7 @@ def seq2idx(seq):
 
     return indices
 
-def load_word_emb(file_name, use_small=False):
+def load_word_emb(args, file_name, use_small=False):
     print ('Loading word embedding from %s'%file_name)
     ret = {}
 
@@ -87,7 +100,21 @@ def load_word_emb(file_name, use_small=False):
                     ret[info[0]] = np.array(list(map(lambda x: float(x), info[1:])))
         with open(cache_name, 'wb') as cache_file:
             pickle.dump(ret, cache_file)
-    return ret
+
+    if args.fasttext_only:
+        if args.fasttext == "wiki":
+            fasttext = FastText.load_fasttext_format("./data/wiki.en.bin")
+        else:
+            fasttext = FastText.load_fasttext_format("./data/crawl-300d-2M-subword.bin")
+        return fasttext
+    elif args.fasttext_together:
+        if args.fasttext == "wiki":
+            fasttext = FastText.load_fasttext_format("./data/wiki.en.bin")
+        else:
+            fasttext = FastText.load_fasttext_format("./data/crawl-300d-2M-subword.bin")
+        return FasttextTogether(ret, fasttext)
+    else:
+        return ret
 
 def lower_keys(x):
     if isinstance(x, list):
@@ -331,9 +358,10 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
     model.train()
     # shuffe
     new_sql_data = []
-    for sql in sql_data:
-        if sql["db_id"] != "baseball_1":
-            new_sql_data.append(sql)
+    if args.bert != -1:
+        for sql in sql_data:
+            if sql["db_id"] != "baseball_1":
+                new_sql_data.append(sql)
 
     sql_data = new_sql_data
     perm=np.random.permutation(len(sql_data))
@@ -345,8 +373,9 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
         for example in examples:
             parse_result = model.parse(example, beam_size=3)
             parse_result = parse_result[0]
-            parse_actions = parse_result[0].actions
-            fix_actions(example, parse_actions)
+            if len(parse_result) > 0:
+                parse_actions = parse_result[0].actions
+                fix_actions(example, parse_actions)
 
         optimizer.zero_grad()
         if bert_optimizer:
@@ -402,9 +431,9 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
                     list_attentions.append(att_weights)
 
             except Exception as e:
-                # print('Epoch Acc: ', e)
-                # print(results)
-                # print(results_all)
+                print('Epoch Acc: ', e)
+                print(results)
+                print(results_all)
                 pred = ""
 
             simple_json = example.sql_json['pre_sql']
@@ -412,9 +441,10 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
             simple_json['sketch_result'] =  " ".join(str(x) for x in results_all[1])
             simple_json['model_result'] = pred
             simple_json['model_result_set'] = set()
-            for idx in range(0, len(results[0].actions), 3):
-                simple_json['model_result_set'].add(str(results[0].actions[idx + 1]) + str(results[0].actions[idx + 2]))
-            attention_list = [att.tolist() for att in list_attentions[0]]
+            if len(results) > 0:
+                for idx in range(0, len(results[0].actions), 3):
+                    simple_json['model_result_set'].add(str(results[0].actions[idx + 1]) + str(results[0].actions[idx + 2]))
+                attention_list = [att.tolist() for att in list_attentions[0]]
             simple_json['attention'] = attention_list
             simple_json['col_set_type'] = example.col_hot_type
             simple_json['tab_set_type'] = example.tab_hot_type

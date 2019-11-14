@@ -105,15 +105,22 @@ class BasicModel(nn.Module):
             is_list = True
         for i, one_q in enumerate(q):
             if not is_list:
-                q_val = list(
-                    map(lambda x: self.word_emb.get(x, np.zeros(self.args.col_embed_size, dtype=np.float32)), one_q))
+                if self.args.fasttext_only or self.args.fasttext_together:
+                    q_val = list(
+                        map(lambda x: self.word_emb[x], one_q))
+                else:
+                    q_val = list(
+                        map(lambda x: self.word_emb.get(x, np.zeros(self.args.col_embed_size, dtype=np.float32)), one_q))
             else:
                 q_val = []
                 for ws in one_q:
                     emb_list = []
                     ws_len = len(ws)
                     for w in ws:
-                        emb_list.append(self.word_emb.get(w, self.word_emb['unk']))
+                        if self.args.fasttext_only or self.args.fasttext_together:
+                            emb_list.append(self.word_emb[w])
+                        else:
+                            emb_list.append(self.word_emb.get(w, self.word_emb['unk']))
                     if ws_len == 0:
                         raise Exception("word list should not be empty!")
                     elif ws_len == 1:

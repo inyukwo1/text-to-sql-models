@@ -12,11 +12,15 @@ CUDA_VISIBLE_DEVICES=$devices python -u train.py --dataset ./data \
 --beam_size 1 \
 --seed 900 \
 --save ${save_name} \
---embed_size 300 \
+--embed_size 600 \
+--col_embed_size 600 \
 --sentence_features \
---hidden_size 300 \
+--hidden_size 600 \
 --lr_scheduler \
 --lr_scheduler_gammar 0.5 \
---att_vec_size 300 \
+--att_vec_size 600 \
+--lr 0.0001 \
 --bert 0 \
---batch_size 6
+--batch_size 6 \
+#--fasttext_together \
+#--fasttext wiki

@@ -113,7 +113,7 @@ class IRNet(BasicModel):
 
         self.table_pointer_net = PointerNet(args.hidden_size, args.col_embed_size, attention_type=args.column_att)
 
-        self.without_bert_params = self.parameters(recurse=True)
+        self.without_bert_params = list(self.parameters(recurse=True))
         if args.bert != -1:
             model_class, tokenizer_class, pretrained_weight, dim = MODELS[args.bert]
             self.transformer_encoder = model_class.from_pretrained(pretrained_weight)
