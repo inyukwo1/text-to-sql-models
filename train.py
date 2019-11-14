@@ -33,7 +33,6 @@ def train(args):
 
     model = IRNet(args, grammar)
 
-
     if args.cuda: model.cuda()
 
     # now get the optimizer
@@ -45,7 +44,7 @@ def train(args):
         bert_optimizer = None
     print('Enable Learning Rate Scheduler: ', args.lr_scheduler)
     if args.lr_scheduler:
-        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[21, 41], gamma=args.lr_scheduler_gammar)
+        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20], gamma=args.lr_scheduler_gammar)
     else:
         scheduler = None
 
@@ -82,7 +81,7 @@ def train(args):
             epoch_end = time.time()
             json_datas = utils.epoch_acc(model, args.batch_size, val_sql_data, val_table_data,
                                          beam_size=args.beam_size)
-            acc = utils.eval_acc(json_datas, val_sql_data)
+            acc, sketch_acc = utils.eval_acc(json_datas, val_sql_data)
 
             if acc > best_dev_acc:
                 utils.save_checkpoint(model, os.path.join(model_save_path, 'best_model.model'))
@@ -90,7 +89,7 @@ def train(args):
             utils.save_checkpoint(model, os.path.join(model_save_path, '{%s}_{%s}.model') % (epoch, acc))
 
             log_str = 'Epoch: %d, Loss: %f, Sketch Acc: %f, Acc: %f, time: %f\n' % (
-                epoch + 1, loss, acc, acc, epoch_end - epoch_begin)
+                epoch + 1, loss, sketch_acc, acc, epoch_end - epoch_begin)
             tqdm.tqdm.write(log_str)
             epoch_fd.write(log_str)
             epoch_fd.flush()
