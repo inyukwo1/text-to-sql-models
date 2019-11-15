@@ -16,7 +16,8 @@ def init_arg_parser():
     arg_parser.add_argument('--seed', default=5783287, type=int, help='random seed')
     arg_parser.add_argument('--cuda', action='store_true', help='use gpu')
     arg_parser.add_argument('--lr_scheduler', action='store_true', help='use learning rate scheduler')
-    arg_parser.add_argument('--lr_scheduler_gammar', default=0.5, type=float, help='decay rate of learning rate scheduler')
+    arg_parser.add_argument('--milestones', default=[15, 30, 40, 50], type=list, help='milestones for lr scheduler')
+    arg_parser.add_argument('--lr_scheduler_gammar', default=1e-1, type=float, help='decay rate of learning rate scheduler')
     arg_parser.add_argument('--column_pointer', action='store_true', help='use column pointer')
     arg_parser.add_argument('--loss_epoch_threshold', default=20, type=int, help='loss epoch threshold')
     arg_parser.add_argument('--sketch_loss_coefficient', default=0.2, type=float, help='sketch loss coefficient')
@@ -46,13 +47,9 @@ def init_arg_parser():
     arg_parser.add_argument('--no_query_vec_to_action_map', default=False, action='store_true')
     arg_parser.add_argument('--readout', default='identity', choices=['identity', 'non_linear'])
     arg_parser.add_argument('--query_vec_to_action_diff_map', default=False, action='store_true')
-
-
     arg_parser.add_argument('--column_att', choices=['dot_prod', 'affine'], default='affine')
-
     arg_parser.add_argument('--decode_max_time_step', default=40, type=int, help='maximum number of time steps used '
                                                                                  'in decoding and sampling')
-
 
     arg_parser.add_argument('--save_to', default='model', type=str, help='save trained model to')
     arg_parser.add_argument('--toy', action='store_true',
@@ -60,8 +57,8 @@ def init_arg_parser():
     arg_parser.add_argument('--clip_grad', default=5., type=float, help='clip gradients')
     arg_parser.add_argument('--max_epoch', default=-1, type=int, help='maximum number of training epoches')
     arg_parser.add_argument('--optimizer', default='Adam', type=str, help='optimizer')
-    arg_parser.add_argument('--lr', default=0.0001, type=float, help='learning rate')
-    arg_parser.add_argument('--bert_lr', default=0.00001, type=float, help='bert learning rate')
+    arg_parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
+    arg_parser.add_argument('--bert_lr', default=1e-5, type=float, help='bert learning rate')
 
     arg_parser.add_argument('--dataset', default="./data", type=str)
     arg_parser.add_argument('--fasttext_together', action='store_true', default=False)
@@ -69,7 +66,7 @@ def init_arg_parser():
     arg_parser.add_argument('--fasttext', choices=['wiki', 'crawl'], default='wiki')
 
 
-    arg_parser.add_argument('--epoch', default=50, type=int, help='Maximum Epoch')
+    arg_parser.add_argument('--epoch', default=100, type=int, help='Maximum Epoch')
     arg_parser.add_argument('--save', default='./', type=str,
                             help="Path to save the checkpoint and logs of epoch")
 

@@ -356,7 +356,7 @@ def fix_actions(example, parse_actions):
 def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_data,
                 args, epoch=0, loss_epoch_threshold=20, sketch_loss_coefficient=0.2):
     model.train()
-    # shuffe
+    # shuffle
     new_sql_data = []
     if args.bert != -1:
         for sql in sql_data:
@@ -418,7 +418,6 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
             try:
                 results_all = model.parse(example, beam_size=beam_size)
                 results = results_all[0]
-                list_preds = []
                 list_preds = []
                 list_attentions = []
 
