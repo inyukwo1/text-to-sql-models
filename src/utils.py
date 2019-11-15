@@ -285,7 +285,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
 def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_data,
                 args, epoch=0, loss_epoch_threshold=20, sketch_loss_coefficient=0.2):
     model.train()
-    # shuffe
+    # shuffle
     new_sql_data = []
     for sql in sql_data:
         if sql["db_id"] != "baseball_1":
@@ -322,7 +322,6 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
         optimizer.step()
         if bert_optimizer:
             bert_optimizer.step()
-        print("Loss: {}".format(loss.data.cpu().numpy()*(ed - st)))
         cum_loss += loss.data.cpu().numpy()*(ed - st)
     return cum_loss / len(sql_data)
 
@@ -365,8 +364,12 @@ def eval_acc(preds, sqls):
     for i, (pred, sql) in enumerate(zip(preds, sqls)):
         if pred['model_result'] == sql['rule_label']:
             best_correct += 1
-    print(best_correct / len(preds))
-    return best_correct / len(preds)
+
+        tmp = ' '.join([t for t in pred['rule_label'].split(' ') if t.split('(')[0] not in ['A', 'C', 'T']])
+        if pred['sketch_result'] == tmp:
+            sketch_correct += 1
+
+    return best_correct / len(preds), sketch_correct / len(preds)
 
 
 def load_data_new(sql_path, table_data, use_small=False):
