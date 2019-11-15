@@ -15,6 +15,7 @@ from torch.autograd import Variable
 from src.beam import Beams, ActionInfo
 from src.dataset import Batch
 from src.models import nn_utils
+from src.models.relation_aware_transformer import RAT, RATConfig
 from src.models.basic_model import BasicModel
 from src.models.pointer_net import PointerNet
 from src.rule import semQL as define_rule
@@ -113,6 +114,24 @@ class IRNet(BasicModel):
 
         self.table_pointer_net = PointerNet(args.hidden_size, args.col_embed_size, attention_type=args.column_att)
 
+        if args.rat:
+            self.src_lstm = nn.LSTM(args.embed_size, args.hidden_size // 2, bidirectional=True, dropout=0.2,
+                                    batch_first=True)
+            self.tab_lstm = nn.LSTM(args.embed_size, args.hidden_size // 2, bidirectional=True, dropout=0.2,
+                                    batch_first=True)
+            self.col_lstm = nn.LSTM(args.embed_size, args.hidden_size // 2, bidirectional=True, dropout=0.2,
+                                    batch_first=True)
+            rat_config = RATConfig(hidden_size=256, num_attention_heads=8, intermediate_size=1024)
+            self.rats = nn.Sequential(RAT(rat_config),
+                                      RAT(rat_config),
+                                      RAT(rat_config),
+                                      RAT(rat_config),
+                                      RAT(rat_config),
+                                      RAT(rat_config),
+                                      RAT(rat_config),
+                                      RAT(rat_config))
+            self.multihead_attn = nn.MultiheadAttention(256, 8)
+
         self.without_bert_params = list(self.parameters(recurse=True))
         if args.bert != -1:
             model_class, tokenizer_class, pretrained_weight, dim = MODELS[args.bert]
@@ -124,6 +143,7 @@ class IRNet(BasicModel):
             self.tab_lstm = torch.nn.LSTM(dim, dim // 2, batch_first=True, bidirectional=True)
             args.hidden_size = dim
             args.col_embed_size = dim
+
 
         # initial the embedding layers
         nn.init.xavier_normal_(self.production_embed.weight.data)
@@ -137,8 +157,43 @@ class IRNet(BasicModel):
         batch = Batch(examples, self.grammar, cuda=self.args.cuda)
 
         table_appear_mask = batch.table_appear_mask
+        if args.rat:
+            src_encodings, (last_state, last_cell) = self.encode(batch.src_sents, batch.src_sents_len, None)
 
-        if args.bert == -1:
+            src_encodings = self.dropout(src_encodings)
+
+            table_embedding = self.gen_x_batch(batch.table_sents)
+            src_embedding = self.gen_x_batch(batch.src_sents)
+            schema_embedding = self.gen_x_batch(batch.table_names)
+            # get emb differ
+            embedding_differ = self.embedding_cosine(src_embedding=src_embedding, table_embedding=table_embedding,
+                                                     table_unk_mask=batch.table_unk_mask)
+
+            schema_differ = self.embedding_cosine(src_embedding=src_embedding, table_embedding=schema_embedding,
+                                                  table_unk_mask=batch.schema_token_mask)
+
+            tab_ctx = (src_encodings.unsqueeze(1) * embedding_differ.unsqueeze(3)).sum(2)
+            schema_ctx = (src_encodings.unsqueeze(1) * schema_differ.unsqueeze(3)).sum(2)
+
+            table_embedding = table_embedding + tab_ctx
+
+            schema_embedding = schema_embedding + schema_ctx
+
+            col_type = self.input_type(batch.col_hot_type)
+
+            col_type_var = self.col_type(col_type)
+
+            table_embedding = table_embedding + col_type_var
+
+            B, max_src_len, _ = src_encodings.size()
+            _, max_col_len, _ = table_embedding.size()
+            _, max_tab_len, _ = schema_embedding.size()
+
+            relation = torch.zeros([B, max_src_len + max_col_len + max_tab_len, max_src_len + max_col_len, max_tab_len], dtype=torch.int32)
+
+
+
+        elif args.bert == -1:
             src_encodings, (last_state, last_cell) = self.encode(batch.src_sents, batch.src_sents_len, None)
 
             src_encodings = self.dropout(src_encodings)

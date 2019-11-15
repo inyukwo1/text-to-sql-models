@@ -19,5 +19,6 @@ CUDA_VISIBLE_DEVICES=$devices python -u train.py --dataset ./data \
 --lr_scheduler \
 --lr_scheduler_gammar 0.5 \
 --att_vec_size 300 \
---bert 0 \
---batch_size 6
+--rat
+#--bert 0 \
+#--batch_size 6
