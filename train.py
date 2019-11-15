@@ -44,9 +44,12 @@ def train(args):
         bert_optimizer = None
     print('Enable Learning Rate Scheduler: ', args.lr_scheduler)
     if args.lr_scheduler:
-        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20], gamma=args.lr_scheduler_gammar)
+        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.milestones, gamma=args.lr_scheduler_gammar)
+        scheduler_bert = optim.lr_scheduler.MultiStepLR(bert_optimizer,
+                            milestones=args.milestones, gamma=args.lr_scheduler_gammar) if bert_optimizer else None
     else:
         scheduler = None
+        scheduler_bert = None
 
     print('Loss epoch threshold: %d' % args.loss_epoch_threshold)
     print('Sketch loss coefficient: %f' % args.sketch_loss_coefficient)
@@ -74,6 +77,8 @@ def train(args):
         for epoch in tqdm.tqdm(range(args.epoch)):
             if args.lr_scheduler:
                 scheduler.step()
+            if scheduler_bert:
+                scheduler_bert.step()
             epoch_begin = time.time()
             loss = utils.epoch_train(model, optimizer, bert_optimizer, args.batch_size, sql_data, table_data, args,
                                loss_epoch_threshold=args.loss_epoch_threshold,

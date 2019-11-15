@@ -285,7 +285,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
 def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_data,
                 args, epoch=0, loss_epoch_threshold=20, sketch_loss_coefficient=0.2):
     model.train()
-    # shuffe
+    # shuffle
     new_sql_data = []
     for sql in sql_data:
         if sql["db_id"] != "baseball_1":
