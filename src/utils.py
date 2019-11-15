@@ -121,7 +121,7 @@ def get_col_table_dict(tab_cols, tab_ids, sql):
     return col_table_dict
 
 
-def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, col_set_iter, sql):
+def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, col_set_iter, tab_set_type, tab_set_iter, sql):
 
     for count_q, t_q in enumerate(question_arg_type):
         t = t_q[0]
@@ -129,7 +129,12 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
             continue
         elif t == 'table':
             one_hot_type[count_q][0] = 1
-            question_arg[count_q] = ['[table]'] + question_arg[count_q]
+            try:
+                tab_set_type[tab_set_iter.index(question_arg[count_q])][1] = 5
+                question_arg[count_q] = ['[table]'] + question_arg[count_q]
+            except:
+                print(tab_set_iter, question_arg[count_q])
+                raise RuntimeError("not in tab set")
         elif t == 'col':
             one_hot_type[count_q][1] = 1
             try:
@@ -147,6 +152,11 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
         elif t == 'value':
             one_hot_type[count_q][5] = 1
             question_arg[count_q] = ['[value]'] + question_arg[count_q]
+        elif t == 'db':
+            one_hot_type[count_q][6] = 1
+            c_cand = [wordnet_lemmatizer.lemmatize(v).lower() for v in t_q[1].split(" ")]
+            question_arg[count_q] = ['[db]'] + question_arg[count_q]
+            col_set_type[col_set_iter.index(c_cand)][4] = 5
         else:
             if len(t_q) == 1:
                 for col_probase in t_q:
@@ -183,13 +193,15 @@ def process(sql, table):
     q_iter_small = [wordnet_lemmatizer.lemmatize(x).lower() for x in origin_sql]
     question_arg = copy.deepcopy(sql['question_arg'])
     question_arg_type = sql['question_arg_type']
-    one_hot_type = np.zeros((len(question_arg_type), 6))
+    one_hot_type = np.zeros((len(question_arg_type), 7))
 
-    col_set_type = np.zeros((len(col_set_iter), 4))
+    col_set_type = np.zeros((len(col_set_iter), 5))
+    tab_set_type = np.zeros((len(table_names), 5))
 
     process_dict['col_set_iter'] = col_set_iter
     process_dict['q_iter_small'] = q_iter_small
     process_dict['col_set_type'] = col_set_type
+    process_dict['tab_set_type'] = tab_set_type
     process_dict['question_arg'] = question_arg
     process_dict['question_arg_type'] = question_arg_type
     process_dict['one_hot_type'] = one_hot_type
@@ -237,8 +249,15 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
                 if ori in col_:
                     process_dict['col_set_type'][c_id][0] += 1
 
+        for t_id, tab_ in enumerate(process_dict['table_names']):
+            for q_id, ori in enumerate(process_dict['q_iter_small']):
+                if ori in tab_:
+                    process_dict['tab_set_type'][t_id][0] += 1
+
         schema_linking(process_dict['question_arg'], process_dict['question_arg_type'],
-                       process_dict['one_hot_type'], process_dict['col_set_type'], process_dict['col_set_iter'], sql)
+                       process_dict['one_hot_type'], process_dict['col_set_type'], process_dict['col_set_iter'],
+                       process_dict['tab_set_type'], process_dict['table_names'],
+                       sql)
 
         col_table_dict = get_col_table_dict(process_dict['tab_cols'], process_dict['tab_ids'], sql)
         table_col_name = get_table_colNames(process_dict['tab_ids'], process_dict['col_iter'])
@@ -263,6 +282,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
             sql=sql['query'],
             one_hot_type=process_dict['one_hot_type'],
             col_hot_type=process_dict['col_set_type'],
+            tab_hot_type=process_dict['tab_set_type'],
             table_names=process_dict['table_names'],
             table_len=len(process_dict['table_names']),
             col_table_dict=col_table_dict,
@@ -287,9 +307,10 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
     model.train()
     # shuffle
     new_sql_data = []
-    for sql in sql_data:
-        if sql["db_id"] != "baseball_1":
-            new_sql_data.append(sql)
+    if args.bert != -1:
+        for sql in sql_data:
+            if sql["db_id"] != "baseball_1":
+                new_sql_data.append(sql)
 
     sql_data = new_sql_data
     perm=np.random.permutation(len(sql_data))

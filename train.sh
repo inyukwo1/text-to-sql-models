@@ -9,7 +9,7 @@ CUDA_VISIBLE_DEVICES=$devices python -u train.py --dataset ./data \
 --epoch 50 \
 --loss_epoch_threshold 50 \
 --sketch_loss_coefficie 1.0 \
---beam_size 1 \
+--beam_size 5 \
 --seed 90 \
 --save ${save_name} \
 --embed_size 300 \

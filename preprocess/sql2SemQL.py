@@ -33,6 +33,15 @@ class Parser:
         :return: [R(), states]
         """
         use_sup, use_ord, use_fil = True, True, False
+        if 'orderBy' in sql['sql']:
+            sql['sql']['orderby'] = sql['sql']['orderBy']
+        if 'groupBy' in sql['sql']:
+            sql['sql']['groupby'] = sql['sql']['groupBy']
+        if 'orderby' in sql['sql']:
+            sql['sql']['orderBy'] = sql['sql']['orderby']
+        if 'groupby' in sql['sql']:
+            sql['sql']['groupBy'] = sql['sql']['groupby']
+
 
         if sql['sql']['limit'] == None:
             use_sup = False

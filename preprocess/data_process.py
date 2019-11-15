@@ -10,13 +10,14 @@ import argparse
 import nltk
 import os
 import pickle
-from utils import symbol_filter, re_lemma, fully_part_header, group_header, partial_header, num2year, group_symbol, group_values, group_digital
+import sqlite3
+from utils import symbol_filter, re_lemma, fully_part_header, group_header, partial_header, num2year, group_symbol, group_values, group_digital, group_db
 from utils import AGG, wordnet_lemmatizer
 from utils import load_dataSets
+from pattern.en import lemma
 
 def process_datas(datas, args):
     """
-
     :param datas:
     :param args:
     :return:
@@ -27,12 +28,58 @@ def process_datas(datas, args):
     with open(os.path.join(args.conceptNet, 'english_IsA.pkl'), 'rb') as f:
         english_IsA = pickle.load(f)
 
+    db_values = dict()
+
+    with open('../data/tables.json') as f:
+        schema_tables = json.load(f)
+    schema_dict = dict()
+    for one_schema in schema_tables:
+        schema_dict[one_schema["db_id"]] = one_schema
+        schema_dict[one_schema["db_id"]]["only_cnames"] = [c_name.lower() for tid, c_name in one_schema["column_names_original"]]
     # copy of the origin question_toks
     for d in datas:
         if 'origin_question_toks' not in d:
             d['origin_question_toks'] = d['question_toks']
 
     for entry in datas:
+        db_id = entry['db_id']
+        if db_id not in db_values:
+            conn = sqlite3.connect("../data/database/{}/{}.sqlite".format(db_id, db_id))
+            # conn.text_factory = bytes
+            cursor = conn.cursor()
+
+            schema = {}
+
+            # fetch table names
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = [str(table[0].lower()) for table in cursor.fetchall()]
+
+            # fetch table info
+            for table in tables:
+                cursor.execute("PRAGMA table_info({})".format(table))
+                schema[table] = [str(col[1].lower()) for col in cursor.fetchall()]
+            col_value_set = dict()
+            for table in tables:
+                for col in schema[table]:
+                    cursor.execute("SELECT \"{}\" FROM \"{}\"".format(col, table))
+                    col_idx = schema_dict[db_id]["only_cnames"].index(col)
+                    col = entry["names"][col_idx]
+                    value_set = set()
+                    try:
+                        for val in cursor.fetchall():
+                            if isinstance(val[0], str):
+                                value_set.add(str(val[0].lower()))
+                                value_set.add(lemma(str(val[0].lower())))
+
+                    except:
+                        print("not utf8 value")
+                    if col in col_value_set:
+                        col_value_set[col] |= value_set
+                    else:
+                        col_value_set[col] = value_set
+            db_values[db_id] = col_value_set
+
+
         entry['question_toks'] = symbol_filter(entry['question_toks'])
         origin_question_toks = symbol_filter([x for x in entry['origin_question_toks'] if x.lower() != 'the'])
         question_toks = [wordnet_lemmatizer.lemmatize(x.lower()) for x in entry['question_toks'] if x.lower() != 'the']
@@ -68,8 +115,27 @@ def process_datas(datas, args):
         tok_concol = []
         type_concol = []
         nltk_result = nltk.pos_tag(question_toks)
-
         while idx < num_toks:
+
+            # check for aggregation
+            end_idx, agg = group_header(question_toks, idx, num_toks, AGG)
+            if agg:
+                tok_concol.append(question_toks[idx: end_idx])
+                type_concol.append(["agg"])
+                idx = end_idx
+                continue
+
+            if nltk_result[idx][1] == 'RBR' or nltk_result[idx][1] == 'JJR':
+                tok_concol.append([question_toks[idx]])
+                type_concol.append(['MORE'])
+                idx += 1
+                continue
+
+            if nltk_result[idx][1] == 'RBS' or nltk_result[idx][1] == 'JJS':
+                tok_concol.append([question_toks[idx]])
+                type_concol.append(['MOST'])
+                idx += 1
+                continue
 
             # fully header
             end_idx, header = fully_part_header(question_toks, idx, num_toks, header_toks)
@@ -103,25 +169,7 @@ def process_datas(datas, args):
                 idx = end_idx
                 continue
 
-            # check for aggregation
-            end_idx, agg = group_header(question_toks, idx, num_toks, AGG)
-            if agg:
-                tok_concol.append(question_toks[idx: end_idx])
-                type_concol.append(["agg"])
-                idx = end_idx
-                continue
 
-            if nltk_result[idx][1] == 'RBR' or nltk_result[idx][1] == 'JJR':
-                tok_concol.append([question_toks[idx]])
-                type_concol.append(['MORE'])
-                idx += 1
-                continue
-
-            if nltk_result[idx][1] == 'RBS' or nltk_result[idx][1] == 'JJS':
-                tok_concol.append([question_toks[idx]])
-                type_concol.append(['MOST'])
-                idx += 1
-                continue
 
             # string match for Time Format
             if num2year(question_toks[idx]):
@@ -172,6 +220,13 @@ def process_datas(datas, args):
                     tok_concol.append([tmp])
                     type_concol.append([pro_result])
                     pro_result = "NONE"
+                idx = end_idx
+                continue
+
+            end_idx, values, col = group_db(origin_question_toks, idx, num_toks, db_values[db_id])
+            if values:
+                tok_concol.append(question_toks[idx: end_idx])
+                type_concol.append(["db", col])
                 idx = end_idx
                 continue
 

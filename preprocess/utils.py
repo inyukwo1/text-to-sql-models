@@ -109,6 +109,15 @@ def symbol_filter(questions):
     return question_tmp_q
 
 
+def group_db(toks, idx, num_toks, col_value_set):
+    for endIdx in reversed(range(idx + 1, num_toks + 1)):
+        sub_toks = toks[idx: endIdx]
+        sub_toks = " ".join(sub_toks)
+        for col in col_value_set:
+            if sub_toks.lower() in col_value_set[col] or lemma(sub_toks.lower()) in col_value_set[col]:
+                return endIdx, sub_toks, col
+    return idx, None, None
+
 def group_values(toks, idx, num_toks):
     def check_isupper(tok_lists):
         for tok_one in tok_lists:

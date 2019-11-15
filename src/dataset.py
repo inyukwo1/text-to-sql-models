@@ -17,9 +17,8 @@ class Example:
     """
 
     """
-    def __init__(self, src_sent, tgt_actions=None, vis_seq=None, tab_cols=None,
-            tab_iter=None,col_num=None, sql=None,
-                 one_hot_type=None, col_hot_type=None, schema_len=None, tab_ids=None,
+    def __init__(self, src_sent, tgt_actions=None, vis_seq=None, tab_cols=None, tab_iter=None, col_num=None, sql=None,
+                 one_hot_type=None, col_hot_type=None, tab_hot_type=None, schema_len=None, tab_ids=None,
                  table_names=None, table_len=None, col_table_dict=None, cols=None,
                  table_col_name=None, table_col_len=None,
                   col_pred=None, tokenized_src_sent=None
@@ -34,6 +33,7 @@ class Example:
         self.sql = sql
         self.one_hot_type=one_hot_type
         self.col_hot_type = col_hot_type
+        self.tab_hot_type = tab_hot_type
         self.schema_len = schema_len
         self.tab_ids = tab_ids
         self.table_names = table_names
@@ -109,6 +109,7 @@ class Batch(object):
 
         self.src_type = [e.one_hot_type for e in self.examples]
         self.col_hot_type = [e.col_hot_type for e in self.examples]
+        self.tab_hot_type = [e.tab_hot_type for e in self.examples]
         self.table_sents = [e.tab_cols for e in self.examples]
         self.table_names_iter = [e.tab_iter for e in self.examples]
         self.col_num = [e.col_num for e in self.examples]
