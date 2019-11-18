@@ -16,7 +16,7 @@ def init_arg_parser():
     arg_parser.add_argument('--seed', default=5783287, type=int, help='random seed')
     arg_parser.add_argument('--cuda', action='store_true', help='use gpu')
     arg_parser.add_argument('--lr_scheduler', action='store_true', help='use learning rate scheduler')
-    arg_parser.add_argument('--milestones', default=[15, 30, 40, 50], type=list, help='milestones for lr scheduler')
+    arg_parser.add_argument('--milestones', default=[15, 20, 40, 50], type=list, help='milestones for lr scheduler')
     arg_parser.add_argument('--lr_scheduler_gammar', default=1e-1, type=float, help='decay rate of learning rate scheduler')
     arg_parser.add_argument('--column_pointer', action='store_true', help='use column pointer')
     arg_parser.add_argument('--loss_epoch_threshold', default=20, type=int, help='loss epoch threshold')
@@ -62,7 +62,7 @@ def init_arg_parser():
 
     arg_parser.add_argument('--dataset', default="./data", type=str)
 
-    arg_parser.add_argument('--epoch', default=60, type=int, help='Maximum Epoch')
+    arg_parser.add_argument('--epoch', default=100, type=int, help='Maximum Epoch')
     arg_parser.add_argument('--save', default='./', type=str,
                             help="Path to save the checkpoint and logs of epoch")
 
