@@ -138,7 +138,8 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
         elif t == 'col':
             one_hot_type[count_q][1] = 1
             try:
-                col_set_type[col_set_iter.index(question_arg[count_q])][1] = 5
+                for idx in [idx for idx, value in enumerate(col_set_iter) if value == question_arg[count_q]]:
+                    col_set_type[idx][1] = 5
                 question_arg[count_q] = ['[column]'] + question_arg[count_q]
             except:
                 print(col_set_iter, question_arg[count_q])
@@ -156,14 +157,17 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
             one_hot_type[count_q][6] = 1
             c_cand = [wordnet_lemmatizer.lemmatize(v).lower() for v in t_q[1].split(" ")]
             question_arg[count_q] = ['[db]'] + question_arg[count_q]
-            col_set_type[col_set_iter.index(c_cand)][4] = 5
+            for idx in [idx for idx, value in enumerate(col_set_iter) if value == c_cand]:
+                col_set_type[idx][4] = 5
         else:
             if len(t_q) == 1:
                 for col_probase in t_q:
                     if col_probase == 'asd':
                         continue
                     try:
-                        col_set_type[sql['col_set'].index(col_probase)][2] = 5
+
+                        for idx in [idx for idx, value in enumerate(col_set_iter) if value == col_probase]:
+                            col_set_type[idx][2] = 5
                         question_arg[count_q] = ['[value]'] + question_arg[count_q]
                     except:
                         print(sql['col_set'], col_probase)
@@ -173,7 +177,8 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
                 for col_probase in t_q:
                     if col_probase == 'asd':
                         continue
-                    col_set_type[sql['col_set'].index(col_probase)][3] += 1
+                    for idx in [idx for idx, value in enumerate(col_set_iter) if value == col_probase]:
+                        col_set_type[idx][3] += 1
 
 def process(sql, table):
 
@@ -210,24 +215,17 @@ def process(sql, table):
     process_dict['col_iter'] = col_iter
     process_dict['table_names'] = table_names
     process_dict['tab_set_iter'] = tab_set_iter
+    process_dict['relation_matrix'] = sql['relation_matrix']
 
     return process_dict
 
 def is_valid(rule_label, col_table_dict, sql):
-    try:
-        lf.build_tree(copy.copy(rule_label))
-    except:
-        print(rule_label)
+    # try:
+    lf.build_tree(copy.copy(rule_label))
+    # except:
+    #     print(rule_label)
 
-    flag = False
-    for r_id, rule in enumerate(rule_label):
-        if type(rule) == C:
-            try:
-                assert rule_label[r_id + 1].id_c in col_table_dict[rule.id_c], print(sql['question'])
-            except:
-                flag = True
-                print(sql['question'])
-    return flag is False
+    return True
 
 
 def to_batch_seq(sql_data, table_data, idxes, st, ed,
@@ -262,7 +260,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
         col_table_dict = get_col_table_dict(process_dict['tab_cols'], process_dict['tab_ids'], sql)
         table_col_name = get_table_colNames(process_dict['tab_ids'], process_dict['col_iter'])
 
-        process_dict['col_set_iter'][0] = ['count', 'number', 'many']
+        # process_dict['col_set_iter'][0] = ['count', 'number', 'many']
 
         rule_label = None
         if 'rule_label' in sql and is_train:
@@ -290,7 +288,8 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
             table_col_name=table_col_name,
             table_col_len=len(table_col_name),
             tokenized_src_sent=process_dict['col_set_type'],
-            tgt_actions=rule_label
+            tgt_actions=rule_label,
+            relation=process_dict['relation_matrix']
         )
         example.sql_json = copy.deepcopy(sql)
         example.db_id = sql['db_id']
@@ -369,11 +368,12 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
                 # print('Epoch Acc: ', e)
                 # print(results)
                 # print(results_all)
+                results_all = [[], []]
                 pred = ""
 
             simple_json = example.sql_json['pre_sql']
 
-            simple_json['sketch_result'] =  " ".join(str(x) for x in results_all[1])
+            simple_json['sketch_result'] = " ".join(str(x) for x in results_all[1])
             simple_json['model_result'] = pred
 
             json_datas.append(simple_json)
@@ -413,8 +413,8 @@ def load_dataset(dataset_dir, use_small=False):
     print("Loading from datasets...")
 
     TABLE_PATH = os.path.join(dataset_dir, "tables.json")
-    TRAIN_PATH = os.path.join(dataset_dir, "train.json")
-    DEV_PATH = os.path.join(dataset_dir, "dev.json")
+    TRAIN_PATH = os.path.join(dataset_dir, "train_rat.json")
+    DEV_PATH = os.path.join(dataset_dir, "dev_rat.json")
     with open(TABLE_PATH) as inf:
         print("Loading data from %s"%TABLE_PATH)
         table_data = json.load(inf)

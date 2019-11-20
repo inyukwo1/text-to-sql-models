@@ -15,6 +15,295 @@ from utils import symbol_filter, re_lemma, fully_part_header, group_header, part
 from utils import AGG, wordnet_lemmatizer
 from utils import load_dataSets
 from pattern.en import lemma
+from relational_schema import RelationalSchema
+from relation_types import RELATION_TYPE
+import numpy
+
+def create_relation_matrix(data, schema, skip_q_indices):
+    # question token - question token relation
+    q_q_relation = parse_q_q_relation(data)
+    q_q = numpy.array(q_q_relation)
+    q_q = numpy.delete(q_q, skip_q_indices, 0)
+    q_q = numpy.delete(q_q, skip_q_indices, 1)
+
+    # question token - schema entity relation
+    q_s_relation = parse_q_s_relation(data, schema)
+    q_s = numpy.array(q_s_relation)
+    q_s = numpy.delete(q_s, skip_q_indices, 0)
+
+    # schema entity - question token relation
+    s_q_relation = parse_s_q_relation(data, schema)
+    s_q = numpy.array(s_q_relation)
+    s_q = numpy.delete(s_q, skip_q_indices, 1)
+
+    # schema entity - schema entity relation
+    s_s_relation = schema.get_entity_relations()
+    s_s = numpy.array(s_s_relation)
+
+    # Concatenate
+    tmp1 = numpy.concatenate((q_q, s_q))
+    tmp2 = numpy.concatenate((q_s, s_s))
+    relation_matrix = numpy.concatenate((tmp1, tmp2), 1)
+
+    return relation_matrix
+
+
+def parse_q_s_relation(data, schema):
+    # need to fix this
+    relations = []
+    relations += [[RELATION_TYPE['cls_c']] * len(schema.get_col_names()) + [RELATION_TYPE['cls_t']] * len(schema.get_table_names())]
+    for idx_1 in range(len(data['question_toks'])):
+        tmp = []
+        linked_entities = data['schema_linking'][idx_1]
+        for idx_2 in range(schema.get_entity_num()):
+            entity = schema.get_entity_original_name(idx_2)
+            if entity in linked_entities:
+                assert 'TABLE' in linked_entities[0] or 'COLUMN' in linked_entities[0]
+                s1 = 'qt' if 'TABLE' in linked_entities[0] else 'qc'
+                assert 'EXACT' in linked_entities[0] or 'PARTIAL' in linked_entities[0]
+                s2 = 'exact' if 'EXACT' in linked_entities[0] else 'partial'
+                key = '_'.join([s1, s2])
+            else:
+                assert 'qt_no' in RELATION_TYPE and 'qc_no' in RELATION_TYPE, 'key changed'
+                key = 'qt_no' if '.' in entity else 'qc_no'
+            tmp += [RELATION_TYPE[key]]
+        relations += [tmp]
+    return relations
+
+
+def parse_s_q_relation(data, schema):
+    # need to fix this
+    relations = []
+    for idx_1 in range(schema.get_entity_num()):
+        tmp = []
+        entity = schema.get_entity_original_name(idx_1)
+        if idx_1 < len(schema.get_col_names()):
+            tmp.append(RELATION_TYPE['c_cls'])
+        else:
+            tmp.append(RELATION_TYPE['t_cls'])
+        for idx_2 in range(len(data['question_toks'])):
+            linked_entities = data['schema_linking'][idx_2]
+            if entity in linked_entities:
+                assert 'TABLE' in linked_entities[0] or 'COLUMN' in linked_entities[0]
+                s1 = 'tq' if 'TABLE' in linked_entities[0] else 'cq'
+                assert 'EXACT' in linked_entities[0] or 'PARTIAL' in linked_entities[0]
+                s2 = 'exact' if 'EXACT' in linked_entities[0] else 'partial'
+                key = '_'.join([s1, s2])
+            else:
+                assert 'tq_no' in RELATION_TYPE and 'cq_no' in RELATION_TYPE, 'key changed'
+                key = 'tq_no' if '.' in entity else 'cq_no'
+            tmp += [RELATION_TYPE[key]]
+        relations += [tmp]
+    return relations
+
+
+def parse_q_q_relation(data):
+    # need to fix this
+    relations = []
+    relations += [[RELATION_TYPE['cls_cls']] + [RELATION_TYPE['cls_q']] * len(data['question_toks'])]
+    question_length = len(data['question_toks'])
+    for idx_1 in range(question_length):
+        tmp = [RELATION_TYPE['q_cls']]
+        for idx_2 in range(question_length):
+            key = 'qq_' + str(max(min(idx_1-idx_2, 2), -2))
+            tmp += [RELATION_TYPE[key]]
+        relations += [tmp]
+    return relations
+
+
+def exact_match(s_idx, q_toks, schema_entities, keys, tmp_list):
+    for endIdx in range(len(q_toks), s_idx, -1):
+        sub_toks = q_toks[s_idx:endIdx]
+        sub_toks = ' '.join(sub_toks)
+        for entity_idx in range(len(schema_entities)):
+            entity = schema_entities[entity_idx]
+            if sub_toks == ' '.join(entity):
+                # Insert match item to list
+                for idx in range(s_idx, endIdx):
+                    tmp_list[idx] += [keys[entity_idx]]
+
+        if tmp_list[s_idx]:
+            # Insert Type
+            typ = '[EXACT COLUMN]' if '.' in tmp_list[s_idx][0] else '[EXACT TABLE]'
+            for idx in range(s_idx, endIdx):
+                tmp_list[idx].insert(0, typ)
+            return endIdx+1
+    return None
+
+
+def partial_match(s_idx, q_toks, schema_entities, keys, tmp_list):
+    for endIdx in range(len(q_toks), s_idx, -1):
+        sub_toks = q_toks[s_idx:endIdx]
+        for entity_idx in range(len(schema_entities)):
+            entity = schema_entities[entity_idx]
+            tmp_set = set(sub_toks) | set(entity)
+            if tmp_set == set(entity):
+                # Insert match item to list
+                for idx in range(s_idx, endIdx):
+                    tmp_list[idx] += [keys[entity_idx]]
+
+        if tmp_list[s_idx]:
+            # Insert Type
+            typ = '[PARTIAL COLUMN]' if '.' in tmp_list[s_idx][0] else '[PARTIAL TABLE]'
+            for idx in range(s_idx, endIdx):
+                tmp_list[idx].insert(0, typ)
+            return endIdx+1
+    return None
+
+
+def get_symbol(s_idx, q_toks):
+    if q_toks[s_idx] == "'":
+        for e_idx in range(s_idx+1, len(q_toks)):
+            if q_toks[e_idx] == "'":
+                return e_idx+1
+    return None
+
+
+def is_digit(value):
+    value = value.replace(':', '').replace('.', '').replace('-', '').replace('$', '')
+    return value.isdigit()
+
+
+def search_knowledge_graph(toks, knowledge_graph):
+    for s_idx in range(len(toks)):
+        for e_idx in range(len(toks), -1, -1):
+            sub_tok = '_'.join(toks[s_idx:e_idx])
+            if sub_tok in knowledge_graph:
+                return knowledge_graph[sub_tok]
+    return None
+
+
+def get_value_idx(s_idx, q_toks):
+    if q_toks[s_idx] == "'":
+        for e_idx in range(s_idx+1, len(q_toks)):
+            if q_toks[e_idx] == "'":
+                return e_idx+1
+    return None
+
+
+def match(value, schema_entities, s_idx, e_idx, tmp_list, is_table):
+    tmp = [entity for entity in schema_entities if value == entity]
+    if tmp:
+        typ = '[EXACT TABLE]' if is_table else '[EXACT COLUMN]'
+        tmp.insert(0, typ)
+        for idx in range(s_idx, e_idx):
+            tmp_list[idx] += tmp
+    return tmp
+
+
+def schema_linking(schema, question_toks, english_RelatedTo, english_IsA):
+    # To-Do: Some words get worse after lemmatization. Need to fix it
+    # Lemmatize Question
+    lemmatized_question = [wordnet_lemmatizer.lemmatize(word) for word in question_toks]
+
+    q_len = len(question_toks)
+    assert q_len == len(lemmatized_question)
+
+    # Lemmatize Tables (1.to singular, 2.to present tense)
+    lemmatized_tables_1 = []
+    lemmatized_tables_2 = []
+    for table in schema.get_table_names():
+        tmp1 = [wordnet_lemmatizer.lemmatize(x.lower()) for x in table.split(' ')]
+        tmp2 = [lemma(x.lower()) if lemma(x.lower()) else x.lower() for x in table.split(' ')]
+        lemmatized_tables_1 += [tmp1]
+        lemmatized_tables_2 += [tmp2]
+
+    # Table Keys
+    table_keys = [table for table in schema.get_table_names()]
+
+    # Lemmatize Columns (1.to singular 2.to present tense)
+    lemmatized_columns_1 = []
+    lemmatized_columns_2 = []
+    for column in schema.get_col_names():
+        tmp1 = [wordnet_lemmatizer.lemmatize(x.lower()) for x in column.split(' ')]
+        tmp2 = [lemma(x.lower()) if lemma(x.lower()) else x.lower() for x in column.split(' ')]
+        lemmatized_columns_1 += [tmp1]
+        lemmatized_columns_2 += [tmp2]
+
+    # Column Keys
+    column_keys = \
+        ['.'.join([schema.get_table_name(schema.get_parent_table_id(id)), column]) for id, column in schema.get_col_items()]
+
+    # Match with schema
+    idx = 0
+    schema_annotation = [[] for _ in range(q_len)]
+    while idx < q_len:
+        # Exact-Match with col
+        r_idx = exact_match(idx, lemmatized_question, lemmatized_columns_1, column_keys, schema_annotation)
+        if r_idx:
+            idx = r_idx
+            continue
+        r_idx = exact_match(idx, lemmatized_question, lemmatized_columns_2, column_keys, schema_annotation)
+        if r_idx:
+            idx = r_idx
+            continue
+
+        # Exact-Match with table
+        r_idx = exact_match(idx, lemmatized_question, lemmatized_tables_1, table_keys, schema_annotation)
+        if r_idx:
+            idx = r_idx
+            continue
+        r_idx = exact_match(idx, lemmatized_question, lemmatized_tables_2, table_keys, schema_annotation)
+        if r_idx:
+            idx = r_idx
+            continue
+
+        # Partial-Match with col
+        r_idx = partial_match(idx, lemmatized_question, lemmatized_columns_1, column_keys, schema_annotation)
+        if r_idx:
+            idx = r_idx
+            continue
+        r_idx = partial_match(idx, lemmatized_question, lemmatized_columns_2, column_keys, schema_annotation)
+        if r_idx:
+            idx = r_idx
+            continue
+
+        # Partial-Match with table
+        r_idx = partial_match(idx, lemmatized_question, lemmatized_tables_1, table_keys, schema_annotation)
+        if r_idx:
+            idx = r_idx
+            continue
+        r_idx = partial_match(idx, lemmatized_question, lemmatized_tables_2, table_keys, schema_annotation)
+        if r_idx:
+            idx = r_idx
+            continue
+
+        # Match with knowledge Graph
+        r_idx = get_value_idx(idx, question_toks)
+        if r_idx:
+            s_idx = idx
+            idx = r_idx
+            # Search with Is-a relation
+            result = search_knowledge_graph(question_toks[idx:r_idx], english_IsA)
+            if result:
+                if match(result, lemmatized_columns_1, s_idx, r_idx, schema_annotation, False):
+                    continue
+                if match(result, lemmatized_columns_2, s_idx, r_idx, schema_annotation, False):
+                    continue
+                if match(result, lemmatized_tables_1, s_idx, r_idx, schema_annotation, True):
+                    continue
+                if match(result, lemmatized_tables_2, s_idx, r_idx, schema_annotation, True):
+                    continue
+            # Search with Related-to relation
+            result = search_knowledge_graph(question_toks[idx:r_idx], english_RelatedTo)
+            if result:
+                if match(result, lemmatized_columns_1, s_idx, r_idx, schema_annotation, False):
+                    continue
+                if match(result, lemmatized_columns_2, s_idx, r_idx, schema_annotation, False):
+                    continue
+                if match(result, lemmatized_tables_1, s_idx, r_idx, schema_annotation, True):
+                    continue
+                if match(result, lemmatized_tables_2, s_idx, r_idx, schema_annotation, True):
+                    continue
+            continue
+        idx += 1
+
+    # Convert Schema_annotation to None
+    schema_annotation = [anno if anno else '[NONE]' for anno in schema_annotation]
+
+    return schema_annotation
+
+
 
 def process_datas(datas, args):
     """
@@ -36,6 +325,9 @@ def process_datas(datas, args):
     for one_schema in schema_tables:
         schema_dict[one_schema["db_id"]] = one_schema
         schema_dict[one_schema["db_id"]]["only_cnames"] = [c_name.lower() for tid, c_name in one_schema["column_names_original"]]
+        schema = RelationalSchema()
+        schema.import_from_spider(one_schema)
+        schema_dict[one_schema["db_id"]]["schema_object"] = schema
     # copy of the origin question_toks
     for d in datas:
         if 'origin_question_toks' not in d:
@@ -43,6 +335,8 @@ def process_datas(datas, args):
 
     for entry in datas:
         db_id = entry['db_id']
+        entry['col_set'] = [col_name for _, col_name in schema_dict[db_id]['column_names']]
+        entry['col_set'] = entry['col_set'][1:]
         if db_id not in db_values:
             conn = sqlite3.connect("../data/database/{}/{}.sqlite".format(db_id, db_id))
             # conn.text_factory = bytes
@@ -115,6 +409,7 @@ def process_datas(datas, args):
         tok_concol = []
         type_concol = []
         nltk_result = nltk.pos_tag(question_toks)
+        skip_q_indices = []
         while idx < num_toks:
 
             # check for aggregation
@@ -122,6 +417,8 @@ def process_datas(datas, args):
             if agg:
                 tok_concol.append(question_toks[idx: end_idx])
                 type_concol.append(["agg"])
+                for skip_indices in range(idx + 1, end_idx):
+                    skip_q_indices.append(skip_indices)
                 idx = end_idx
                 continue
 
@@ -142,6 +439,8 @@ def process_datas(datas, args):
             if header:
                 tok_concol.append(question_toks[idx: end_idx])
                 type_concol.append(["col"])
+                for skip_indices in range(idx + 1, end_idx):
+                    skip_q_indices.append(skip_indices)
                 idx = end_idx
                 continue
 
@@ -150,6 +449,8 @@ def process_datas(datas, args):
             if tname:
                 tok_concol.append(question_toks[idx: end_idx])
                 type_concol.append(["table"])
+                for skip_indices in range(idx + 1, end_idx):
+                    skip_q_indices.append(skip_indices)
                 idx = end_idx
                 continue
 
@@ -158,6 +459,8 @@ def process_datas(datas, args):
             if header:
                 tok_concol.append(question_toks[idx: end_idx])
                 type_concol.append(["col"])
+                for skip_indices in range(idx + 1, end_idx):
+                    skip_q_indices.append(skip_indices)
                 idx = end_idx
                 continue
 
@@ -166,6 +469,8 @@ def process_datas(datas, args):
             if tname:
                 tok_concol.append(tname)
                 type_concol.append(["col"])
+                for skip_indices in range(idx + 1, end_idx):
+                    skip_q_indices.append(skip_indices)
                 idx = end_idx
                 continue
 
@@ -178,6 +483,9 @@ def process_datas(datas, args):
                 if header:
                     tok_concol.append(question_toks[idx: end_idx])
                     type_concol.append(["col"])
+
+                    for skip_indices in range(idx + 1, end_idx):
+                        skip_q_indices.append(skip_indices)
                     idx = end_idx
                     continue
 
@@ -204,12 +512,13 @@ def process_datas(datas, args):
                     tok_concol.append([tmp])
                     type_concol.append([pro_result])
                     pro_result = "NONE"
+
                 idx = end_idx
                 continue
 
             end_idx, values = group_values(origin_question_toks, idx, num_toks)
             if values and (len(values) > 1 or question_toks[idx - 1] not in ['?', '.']):
-                tmp_toks = [wordnet_lemmatizer.lemmatize(x) for x in question_toks[idx: end_idx] if x.isalnum() is True]
+                tmp_toks = [wordnet_lemmatizer.lemmatize(x) for x in question_toks[idx: end_idx]]
                 assert len(tmp_toks) > 0, print(question_toks[idx: end_idx], values, question_toks, idx, end_idx)
                 pro_result = get_concept_result(tmp_toks, english_IsA)
                 if pro_result is None:
@@ -220,6 +529,7 @@ def process_datas(datas, args):
                     tok_concol.append([tmp])
                     type_concol.append([pro_result])
                     pro_result = "NONE"
+
                 idx = end_idx
                 continue
 
@@ -227,6 +537,9 @@ def process_datas(datas, args):
             if values:
                 tok_concol.append(question_toks[idx: end_idx])
                 type_concol.append(["db", col])
+
+                for skip_indices in range(idx + 1, end_idx):
+                    skip_q_indices.append(skip_indices)
                 idx = end_idx
                 continue
 
@@ -247,6 +560,13 @@ def process_datas(datas, args):
         entry['question_arg'] = tok_concol
         entry['question_arg_type'] = type_concol
         entry['nltk_pos'] = nltk_result
+        schema_annotation = schema_linking(schema_dict[db_id]["schema_object"], entry['question_toks'], english_RelatedTo, english_IsA)
+
+        entry['schema_linking'] = schema_annotation
+        for idx in range(len(skip_q_indices)):
+            skip_q_indices[idx] = skip_q_indices[idx] + 1
+        entry['relation_matrix'] = create_relation_matrix(entry, schema_dict[db_id]["schema_object"], skip_q_indices).tolist()
+        assert len(entry['relation_matrix']) == 1 + len(tok_concol) + len(entry['col_set']) + len(entry["table_names"])
 
     return datas
 
@@ -266,6 +586,6 @@ if __name__ == '__main__':
     process_result = process_datas(datas, args)
 
     with open(args.output, 'w') as f:
-        json.dump(datas, f)
+        json.dump(datas, f, indent=4)
 
 

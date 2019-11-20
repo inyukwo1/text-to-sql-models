@@ -180,17 +180,17 @@ class Beams(object):
         if find_sel is False:
             return True
 
-        # not the complete sel lf
-        if len(sel_actions) % 3 != 0:
-            return True
-
-        sel_string = list()
-        for i in range(len(sel_actions) // 3):
-            if (sel_actions[i * 3 + 0].id_c, sel_actions[i * 3 + 1].id_c, sel_actions[i * 3 + 2].id_c) in sel_string:
-                return False
-            else:
-                sel_string.append(
-                    (sel_actions[i * 3 + 0].id_c, sel_actions[i * 3 + 1].id_c, sel_actions[i * 3 + 2].id_c))
+        # # not the complete sel lf
+        # if len(sel_actions) % 2 != 0:
+        #     return True
+        #
+        # sel_string = list()
+        # for i in range(len(sel_actions) // 2):
+        #     if (sel_actions[i * 2 + 0].id_c, sel_actions[i * 2 + 1].id_c) in sel_string:
+        #         return False
+        #     else:
+        #         sel_string.append(
+        #             (sel_actions[i * 2 + 0].id_c, sel_actions[i * 2 + 1].id_c))
         return True
 
 

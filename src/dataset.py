@@ -12,6 +12,8 @@ import random
 import src.rule.semQL as define_rule
 from src.models import nn_utils
 from src import utils
+import numpy as np
+import torch
 
 class Example:
     """
@@ -21,7 +23,7 @@ class Example:
                  one_hot_type=None, col_hot_type=None, tab_hot_type=None, schema_len=None, tab_ids=None,
                  table_names=None, table_len=None, col_table_dict=None, cols=None,
                  table_col_name=None, table_col_len=None,
-                  col_pred=None, tokenized_src_sent=None
+                  col_pred=None, tokenized_src_sent=None, relation=None
         ):
 
         self.src_sent = src_sent
@@ -45,6 +47,7 @@ class Example:
         self.col_pred = col_pred
         self.tgt_actions = tgt_actions
         self.truth_actions = copy.deepcopy(tgt_actions)
+        self.relation = np.array(relation)
 
         self.sketch = list()
         if self.truth_actions:
@@ -120,6 +123,16 @@ class Batch(object):
         self.table_col_name = [e.table_col_name for e in examples]
         self.table_col_len = [e.table_col_len for e in examples]
         self.col_pred = [e.col_pred for e in examples]
+
+        relation_matrix = [e.relation for e in examples]
+        max_len = max([len(item) for item in relation_matrix])
+        relation_matrix_padded = torch.zeros(len(relation_matrix), max_len, max_len, dtype=torch.long)
+        for b_idx in range(len(relation_matrix)):
+            length = len(relation_matrix[b_idx])
+            relation_matrix_padded[b_idx, :length, :length] = torch.tensor(relation_matrix[b_idx])
+        if torch.cuda.is_available():
+            relation_matrix_padded = relation_matrix_padded.cuda()
+        self.relation = relation_matrix_padded
 
         self.grammar = grammar
         self.cuda = cuda
