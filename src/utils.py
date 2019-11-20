@@ -365,9 +365,7 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
                 for x in results:
                     list_preds.append(" ".join(str(x.actions)))
             except Exception as e:
-                # print('Epoch Acc: ', e)
-                # print(results)
-                # print(results_all)
+                print('Error: {}'.format(e))
                 results_all = [[], []]
                 pred = ""
 
@@ -376,15 +374,37 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
             simple_json['sketch_result'] = " ".join(str(x) for x in results_all[1])
             simple_json['model_result'] = pred
 
+            simple_json['col_set_type'] = example.col_hot_type
+            simple_json['tab_set_type'] = example.tab_hot_type
             json_datas.append(simple_json)
         st = ed
     return json_datas
 
-def eval_acc(preds, sqls):
+import random
+def eval_acc(preds, sqls, log=False):
     sketch_correct, best_correct = 0, 0
-    for i, (pred, sql) in enumerate(zip(preds, sqls)):
+    perm = list(range(len(preds)))
+    random.shuffle(perm)
+    for q_idx in range(len(preds)):
+        perm_idx = perm[q_idx]
+        pred = preds[perm_idx]
+        sql = sqls[perm_idx]
         if pred['model_result'] == sql['rule_label']:
             best_correct += 1
+
+        elif log:
+            print("IDX: {}, origin IDX: {}".format(q_idx, perm_idx))
+            print("DB ID: {}".format(sql['db_id']))
+            print("QUESTION: {}".format(sql['question_arg']))
+            print("QUESTION: {}".format(sql['question_arg_type']))
+            print("QUERY: {}".format(sql["query"]))
+            print("tables: {}".format(list(zip(range(len(sql["table_names"])), sql["table_names"]))))
+            print("{}".format(pred["tab_set_type"].transpose((1, 0))))
+            print("col set: {}".format(list(zip(range(len(sql["col_set"])), sql["col_set"]))))
+            print("{}".format(pred["col_set_type"].transpose((1, 0))))
+            print("GOLD: {}".format(sql['rule_label']))
+            print("PRED: {}".format(pred['model_result']))
+            print("\n\n")
 
         tmp = ' '.join([t for t in pred['rule_label'].split(' ') if t.split('(')[0] not in ['A', 'C', 'T']])
         if pred['sketch_result'] == tmp:

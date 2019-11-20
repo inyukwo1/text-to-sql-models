@@ -57,7 +57,7 @@ class Beams(object):
         for action in self.actions:
             infer_action = action.get_next_action(is_sketch=self.is_sketch)
             infer_action.reverse()
-            if stack[-1] is type(action):
+            if (stack[-1] is semQL.C and type(action) is semQL.T) or stack[-1] is type(action):
                 stack.pop()
                 # check if the are non-terminal
                 if check_type(infer_action):
