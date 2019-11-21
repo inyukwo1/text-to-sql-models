@@ -24,6 +24,7 @@ from transformers import *
 # for 8 transformer architectures and 30 pretrained weights.
 #          Model          | Tokenizer          | Pretrained weights shortcut
 MODELS = [(BertModel,       BertTokenizer,       'bert-base-uncased', 768),
+          (BertModel,       BertTokenizer,       'bert-large-uncased', 1024),
           (OpenAIGPTModel,  OpenAIGPTTokenizer,  'openai-gpt'),
           (GPT2Model,       GPT2Tokenizer,       'gpt2'),
           (CTRLModel,       CTRLTokenizer,       'ctrl'),
@@ -31,7 +32,7 @@ MODELS = [(BertModel,       BertTokenizer,       'bert-base-uncased', 768),
           (XLNetModel,      XLNetTokenizer,      'xlnet-base-cased'),
           (XLMModel,        XLMTokenizer,        'xlm-mlm-enfr-1024'),
           (DistilBertModel, DistilBertTokenizer, 'distilbert-base-uncased'),
-          (RobertaModel,    RobertaTokenizer,    'roberta-base')]
+          (RobertaModel,    RobertaTokenizer,    'roberta-base', 768)]
 
 
 class IRNet(BasicModel):
