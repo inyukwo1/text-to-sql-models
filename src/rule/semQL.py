@@ -183,7 +183,7 @@ class C(Action):
         super(C, self).__init__()
         self.parent = parent
         self.id_c = id_c
-        self.production = 'C min'
+        self.production = 'C T'
         self.table = None
 
     def __str__(self):
@@ -233,13 +233,7 @@ class A(Action):
             2: "A min C",
             3: "A count C",
             4: "A sum C",
-            5: "A avg C",
-            6: 'A none T',
-            7: 'A max T',
-            8: "A min T",
-            9: "A count T",
-            10: "A sum T",
-            11: "A avg T"
+            5: "A avg C"
         }
         self.production_id = {}
         for id_x, value in enumerate(self.grammar_dict.values()):

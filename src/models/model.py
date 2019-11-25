@@ -397,9 +397,9 @@ class IRNet(BasicModel):
 
             schema_token_mask = batch.schema_token_mask.expand_as(table_weights)
             table_weights.data.masked_fill_(schema_token_mask, -float('inf'))
-            # table_dict = [batch_table_dict[x_id][int(x)] for x_id, x in enumerate(table_enable.tolist())]
-            # table_mask = batch.table_dict_mask(table_dict)
-            # table_weights.data.masked_fill_(table_mask, -float('inf'))
+            table_dict = [batch_table_dict[x_id][int(x)] for x_id, x in enumerate(table_enable.tolist())]
+            table_mask = batch.table_dict_mask(table_dict)
+            table_weights.data.masked_fill_(table_mask, -float('inf'))
 
             table_weights = F.softmax(table_weights, dim=-1)
             # now get the loss
@@ -894,6 +894,8 @@ class IRNet(BasicModel):
                                       'score': col_sel_score, 'new_hyp_score': new_hyp_score,
                                       'prev_hyp_id': hyp_id}
                         new_hyp_meta.append(meta_entry)
+
+                elif type(padding_sketch[t]) == define_rule.T:
                     for t_id, _ in enumerate(batch.table_names[0]):
                         t_sel_score = table_weights[hyp_id, t_id]
                         new_hyp_score = hyp.score + t_sel_score.data.cpu()
@@ -902,8 +904,6 @@ class IRNet(BasicModel):
                                       'score': t_sel_score, 'new_hyp_score': new_hyp_score,
                                       'prev_hyp_id': hyp_id}
                         new_hyp_meta.append(meta_entry)
-                elif type(padding_sketch[t]) == define_rule.T:
-                    raise Exception("table detected")
                 else:
                     prod_id = self.grammar.prod2id[padding_sketch[t].production]
                     new_hyp_score = hyp.score + torch.tensor(0.0)

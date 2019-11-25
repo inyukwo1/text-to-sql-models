@@ -220,12 +220,20 @@ def process(sql, table):
     return process_dict
 
 def is_valid(rule_label, col_table_dict, sql):
-    # try:
-    lf.build_tree(copy.copy(rule_label))
-    # except:
-    #     print(rule_label)
+    try:
+        lf.build_tree(copy.copy(rule_label))
+    except:
+        print(rule_label)
 
-    return True
+    flag = False
+    for r_id, rule in enumerate(rule_label):
+        if type(rule) == C:
+            try:
+                assert rule_label[r_id + 1].id_c in col_table_dict[rule.id_c], print(sql['question'])
+            except:
+                flag = True
+                print(sql['question'])
+    return flag is False
 
 
 def to_batch_seq(sql_data, table_data, idxes, st, ed,
@@ -260,7 +268,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
         col_table_dict = get_col_table_dict(process_dict['tab_cols'], process_dict['tab_ids'], sql)
         table_col_name = get_table_colNames(process_dict['tab_ids'], process_dict['col_iter'])
 
-        # process_dict['col_set_iter'][0] = ['count', 'number', 'many']
+        process_dict['col_set_iter'][0] = ['count', 'number', 'many']
 
         rule_label = None
         if 'rule_label' in sql and is_train:
