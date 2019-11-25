@@ -141,7 +141,7 @@ class MultiheadAttention(nn.Module):
             r_k = relation_k.repeat(num_heads, 1, 1, 1)
             q_len = q.shape[-2]
             q = q.contiguous().view(bsz*num_heads*q_len, 1, head_dim)
-            r_k = r_k.view(bsz*num_heads*q_len, head_dim, q_len)
+            r_k = r_k.transpose(2, 3).view(bsz * num_heads * q_len, head_dim, q_len)
             attn_output_weights_relation_k = torch.bmm(q, r_k).view(bsz*num_heads, q_len, q_len)
 
         # Combine
