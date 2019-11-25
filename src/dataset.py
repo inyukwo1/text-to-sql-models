@@ -124,15 +124,7 @@ class Batch(object):
         self.table_col_len = [e.table_col_len for e in examples]
         self.col_pred = [e.col_pred for e in examples]
 
-        relation_matrix = [e.relation for e in examples]
-        max_len = max([len(item) for item in relation_matrix])
-        relation_matrix_padded = torch.zeros(len(relation_matrix), max_len, max_len, dtype=torch.long)
-        for b_idx in range(len(relation_matrix)):
-            length = len(relation_matrix[b_idx])
-            relation_matrix_padded[b_idx, :length, :length] = torch.tensor(relation_matrix[b_idx])
-        if torch.cuda.is_available():
-            relation_matrix_padded = relation_matrix_padded.cuda()
-        self.relation = relation_matrix_padded
+        self.relation = [e.relation for e in examples]
 
         self.grammar = grammar
         self.cuda = cuda

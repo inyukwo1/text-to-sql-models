@@ -39,7 +39,7 @@ def train(args):
     optimizer_cls = eval('torch.optim.%s' % args.optimizer)
     optimizer = optimizer_cls(model.without_bert_params, lr=args.lr)
     if args.bert != -1:
-        bert_optimizer = optimizer_cls(model.transformer_encoder.parameters(), lr=args.bert_lr)
+        bert_optimizer = optimizer_cls(model.bert_rat.parameters(), lr=args.bert_lr)
     else:
         bert_optimizer = None
     print('Enable Learning Rate Scheduler: ', args.lr_scheduler)

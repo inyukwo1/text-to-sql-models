@@ -323,12 +323,12 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
     perm=np.random.permutation(len(sql_data))
     cum_loss = 0.0
     st = 0
+    if bert_optimizer:
+        bert_optimizer.zero_grad()
+    optimizer.zero_grad()
     for st in tqdm(range(0, len(sql_data), batch_size)):
         ed = st+batch_size if st+batch_size < len(perm) else len(perm)
         examples = to_batch_seq(sql_data, table_data, perm, st, ed)
-        optimizer.zero_grad()
-        if bert_optimizer:
-            bert_optimizer.zero_grad()
 
         score = model.forward(examples)
         if score[0] is None:
@@ -347,9 +347,13 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
         loss.backward()
         if args.clip_grad > 0.:
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad)
-        optimizer.step()
-        if bert_optimizer:
-            bert_optimizer.step()
+        if st % (batch_size * 3) == 2:
+            optimizer.step()
+            if bert_optimizer:
+                bert_optimizer.step()
+            if bert_optimizer:
+                bert_optimizer.zero_grad()
+            optimizer.zero_grad()
         cum_loss += loss.data.cpu().numpy()*(ed - st)
     return cum_loss / len(sql_data)
 
