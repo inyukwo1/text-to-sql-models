@@ -335,6 +335,8 @@ def process_datas(datas, args):
 
     for entry in datas:
         db_id = entry['db_id']
+        entry['col_set'] = [col_name for _, col_name in schema_dict[db_id]['column_names']]
+        entry['col_set'] = entry['col_set'][1:]
         if db_id not in db_values:
             conn = sqlite3.connect("../data/database/{}/{}.sqlite".format(db_id, db_id))
             # conn.text_factory = bytes

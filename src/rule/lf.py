@@ -17,32 +17,32 @@ from src.rule.semQL import Sup, Sel, Order, Root, Filter, A, N, C, T, Root1
 def _build_single_filter(lf, f):
     # No conjunction
     agg = lf.pop(0)
-    column = lf.pop(0)
-    if len(lf) == 0:
-        table = None
-    else:
-        table = lf.pop(0)
-        if not isinstance(table, define_rule.T):
-            lf.insert(0, table)
-            table = None
-    assert isinstance(agg, define_rule.A) and isinstance(column, define_rule.C)
+    column_table = lf.pop(0)
+    # if len(lf) == 0:
+    #     table = None
+    # else:
+    #     table = lf.pop(0)
+        # if not isinstance(table, define_rule.T):
+        #     lf.insert(0, table)
+        #     table = None
+    # assert isinstance(agg, define_rule.A) and isinstance(column, define_rule.C)
     if len(f.production.split()) == 3:
         f.add_children(agg)
         agg.set_parent(f)
-        agg.add_children(column)
-        column.set_parent(agg)
-        if table is not None:
-            column.add_children(table)
-            table.set_parent(column)
+        agg.add_children(column_table)
+        column_table.set_parent(agg)
+        # if table is not None:
+        #     column.add_children(table)
+        #     table.set_parent(column)
     else:
         # Subquery
         f.add_children(agg)
         agg.set_parent(f)
-        agg.add_children(column)
-        column.set_parent(agg)
-        if table is not None:
-            column.add_children(table)
-            table.set_parent(column)
+        agg.add_children(column_table)
+        column_table.set_parent(agg)
+        # if table is not None:
+        #     column.add_children(table)
+        #     table.set_parent(column)
         _root = _build(lf)
         f.add_children(_root)
         _root.set_parent(f)
@@ -86,44 +86,44 @@ def _build(lf):
             assert isinstance(c_instance, define_rule.N)
             for i in range(c_instance.id_c + 1):
                 agg = lf.pop(0)
-                column = lf.pop(0)
-                if len(lf) == 0:
-                    table = None
-                else:
-                    table = lf.pop(0)
-                    if not isinstance(table, define_rule.T):
-                        lf.insert(0, table)
-                        table = None
-                assert isinstance(agg, define_rule.A) and isinstance(column, define_rule.C)
+                column_table = lf.pop(0)
+                # if len(lf) == 0:
+                #     table = None
+                # else:
+                #     table = lf.pop(0)
+                    # if not isinstance(table, define_rule.T):
+                    #     lf.insert(0, table)
+                    #     table = None
+                # assert isinstance(agg, define_rule.A) and isinstance(column, define_rule.C)
                 c_instance.add_children(agg)
                 agg.set_parent(c_instance)
-                agg.add_children(column)
-                column.set_parent(agg)
-                if table is not None:
-                    column.add_children(table)
-                    table.set_parent(column)
+                agg.add_children(column_table)
+                column_table.set_parent(agg)
+                # if table is not None:
+                #     column.add_children(table)
+                #     table.set_parent(column)
 
         elif isinstance(c_instance, define_rule.Sup) or isinstance(c_instance, define_rule.Order):
             root.add_children(c_instance)
             c_instance.set_parent(root)
 
             agg = lf.pop(0)
-            column = lf.pop(0)
-            if len(lf) == 0:
-                table = None
-            else:
-                table = lf.pop(0)
-                if not isinstance(table, define_rule.T):
-                    lf.insert(0, table)
-                    table = None
-            assert isinstance(agg, define_rule.A) and isinstance(column, define_rule.C)
+            column_table = lf.pop(0)
+            # if len(lf) == 0:
+            #     table = None
+            # else:
+            #     table = lf.pop(0)
+                # if not isinstance(table, define_rule.T):
+                #     lf.insert(0, table)
+                #     table = None
+            # assert isinstance(agg, define_rule.A) and isinstance(column, define_rule.C)
             c_instance.add_children(agg)
             agg.set_parent(c_instance)
-            agg.add_children(column)
-            column.set_parent(agg)
-            if table is not None:
-                column.add_children(table)
-                table.set_parent(column)
+            agg.add_children(column_table)
+            column_table.set_parent(agg)
+            # if table is not None:
+            #     column.add_children(table)
+            #     table.set_parent(column)
 
         elif isinstance(c_instance, define_rule.Filter):
             _build_filter(lf, c_instance)
@@ -159,8 +159,9 @@ def eliminate_parent(node):
 
 def verify(node):
     if isinstance(node, C) and len(node.children) > 0:
-        table = node.children[0]
-        assert table is None or isinstance(table, T)
+        return
+        # table = node.children[0]
+        # assert table is None or isinstance(table, T)
     if isinstance(node, T):
         return
     children_num = len(node.children)

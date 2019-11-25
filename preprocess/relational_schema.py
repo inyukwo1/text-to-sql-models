@@ -51,21 +51,14 @@ class RelationalSchema(Schema):
 
         for key_1, idx_1 in self._entity_id_original.items():
             is_table_1 = '.' not in key_1
-            if not is_table_1 and key_1.split('.')[0] == '*':
-                parent_id_1 = None
-                item_id_1 = 0
-            else:
-                parent_id_1 = None if is_table_1 else self.get_table_id(key_1.split('.')[0])
-                item_id_1 = self.get_table_id(key_1) if is_table_1 else self.get_col_id(parent_id_1, key_1.split('.')[1])
+
+            parent_id_1 = None if is_table_1 else self.get_table_id(key_1.split('.')[0])
+            item_id_1 = self.get_table_id(key_1) if is_table_1 else self.get_col_id(parent_id_1, key_1.split('.')[1])
 
             for key_2, idx_2 in self._entity_id_original.items():
                 is_table_2 = '.' not in key_2
-                if not is_table_2 and key_2.split('.')[0] == '*':
-                    parent_id_2 = None
-                    item_id_2 = 0
-                else:
-                    parent_id_2 = None if is_table_2 else self.get_table_id(key_2.split('.')[0])
-                    item_id_2 = self.get_table_id(key_2) if is_table_2 else self.get_col_id(parent_id_2, key_2.split('.')[1])
+                parent_id_2 = None if is_table_2 else self.get_table_id(key_2.split('.')[0])
+                item_id_2 = self.get_table_id(key_2) if is_table_2 else self.get_col_id(parent_id_2, key_2.split('.')[1])
 
                 # Find Relation Type
                 if is_table_1:

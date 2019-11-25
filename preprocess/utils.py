@@ -32,9 +32,9 @@ def load_dataSets(args):
         tmp_col = []
         for cc in [x[1] for x in table['column_names']]:
             # if cc not in tmp_col:
-                tmp_col.append(cc)
+            tmp_col.append(cc)
         table['col_set'] = tmp_col
-        # table['col_set'] = table['col_set'][1:]
+        table['col_set'] = table['col_set'][1:]
         db_name = table['db_id']
         tabel_name.add(db_name)
         table['schema_content'] = [col[1] for col in table['column_names']]

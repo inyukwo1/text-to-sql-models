@@ -118,12 +118,10 @@ class Parser:
 
         for sel in select:
             result.append(A(sel[0]))
-            result.append(C(sql['col_set'].index(sql['names'][sel[1][1][1]])))
-            # now check for the situation with *
             if sel[1][1][1] == 0:
                 result.append(self._parser_column0(sql, select))
             else:
-                result.append(T(sql['col_table'][sel[1][1][1]]))
+                result.append(C(sql['col_set'].index(sql['names'][sel[1][1][1]])))
             if not self.copy_selec:
                 self.copy_selec = [copy.deepcopy(result[-2]), copy.deepcopy(result[-1])]
 
@@ -146,11 +144,10 @@ class Parser:
             result.append(Sup(1))
 
         result.append(A(sql['sql']['orderBy'][1][0][1][0]))
-        result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderBy'][1][0][1][1]])))
         if sql['sql']['orderBy'][1][0][1][1] == 0:
             result.append(self._parser_column0(sql, select))
         else:
-            result.append(T(sql['col_table'][sql['sql']['orderBy'][1][0][1][1]]))
+            result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderBy'][1][0][1][1]])))
         return result, None
 
     def _parse_filter(self, sql):
@@ -230,11 +227,10 @@ class Parser:
                 else:
                     result.append(Order(1))
                 result.append(A(sql['sql']['orderBy'][1][0][1][0]))
-                result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderBy'][1][0][1][1]])))
                 if sql['sql']['orderBy'][1][0][1][1] == 0:
                     result.append(self._parser_column0(sql, select))
                 else:
-                    result.append(T(sql['col_table'][sql['sql']['orderBy'][1][0][1][1]]))
+                    result.append(C(sql['col_set'].index(sql['names'][sql['sql']['orderBy'][1][0][1][1]])))
         return result, None
 
 
@@ -274,12 +270,11 @@ class Parser:
 
         result.append(fil)
         result.append(A(sql_condit[2][1][0]))
-        result.append(C(sql['col_set'].index(sql['names'][sql_condit[2][1][1]])))
         if sql_condit[2][1][1] == 0:
             select = sql['sql']['select'][1]
             result.append(self._parser_column0(sql, select))
         else:
-            result.append(T(sql['col_table'][sql_condit[2][1][1]]))
+            result.append(C(sql['col_set'].index(sql['names'][sql_condit[2][1][1]])))
 
         # check for the nested value
         if type(sql_condit[3]) == dict:
