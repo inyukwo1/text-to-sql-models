@@ -105,9 +105,8 @@ class GeneratorWrapper:
         # Shadowing
         # score: List[(subtree x entity)]
         # 1) 뽑아야되는데 아무도 안뽑음 -> 다같이 뽑게 함 (except 뭔가 뽑은 애)- TODO - [experiments] 어떤 값을 ground truth로 쓸 것인가?
-        # 2) 안뽑아야되는데 뽑음 -> 뽑은애 한테 로스 및 no entity에 로스
-        # 3) 뽑는지 안뽑는지 모르는거 -> 로스 x
-        # 4) 뽑아야되는데 잘 뽑음 -> 더 잘 뽑게 로스 주고 no entity를 낮춤
+        # 2) 안뽑아야되는거 -> 로스
+        # 4) 뽑아야되는데 잘 뽑음 -> 더 잘 뽑게 로스 및 모르는거는 로스 x
         # TODO - 다음과 같은 로스를 주고 싶다 1) subtree 중 하나만 선택하도록 하는 loss 2) entity 중 하나만 선택하도록 하는 loss
         labels, schemas, questions, sqls = gt_data
         B = len(score)
@@ -143,14 +142,14 @@ class GeneratorWrapper:
             max_arg_numpy = max_arg.data.cpu().numpy()
             assert entity_num == schema.tab_num() + schema.col_num_except_star() + 1
             # loss_applied = [[False] * entity_num] * subtree_num
-            for tab_id in loss_tab_ids:
+            for tab_id in range(schema.tab_num()):
                 assert tab_id < schema.tab_num()
                 if tab_id not in selected_tabs:
                     for subtree_idx in range(subtree_num):
                         # if max_arg_numpy[subtree_idx] == entity_num - 1: # no-entity
                             gold[subtree_idx, tab_id] = 1.0
                             # loss_applied[subtree_idx][tab_id] = True
-            for col_id in loss_col_ids:
+            for col_id in range(schema.col_num()):
                 assert col_id < schema.col_num()
                 if col_id not in selected_cols:
                     for subtree_idx in range(subtree_num):
@@ -160,15 +159,15 @@ class GeneratorWrapper:
             for subtree_idx in range(subtree_num):
                 for tab_id in range(schema.tab_num()):
                     entity_idx = tab_id
-                    if tab_id not in label.tables and attention[subtree_idx, entity_idx] >= attention[subtree_idx, entity_num - 1]:
+                    if tab_id not in label.tables:
                         gold[subtree_idx, entity_idx] = 0.
-                        gold[subtree_idx, entity_num - 1] = 1.
+                        # gold[subtree_idx, entity_num - 1] = 1.
                         # loss_applied[subtree_idx][entity_idx] = True
                 for col_id in range(schema.col_num()):
                     entity_idx = col_id - 1 + schema.tab_num()
-                    if col_id not in label.cols and attention[subtree_idx, entity_idx] >= attention[subtree_idx, entity_num - 1]:
+                    if col_id not in label.cols:
                         gold[subtree_idx, entity_idx] = 0.
-                        gold[subtree_idx, entity_num - 1] = 1.
+                        # gold[subtree_idx, entity_num - 1] = 1.
                         # loss_applied[subtree_idx][entity_idx] = True
             # for subtree_idx in range(subtree_num):
             #     for entity_idx in range(entity_num):
@@ -178,14 +177,12 @@ class GeneratorWrapper:
             for subtree_idx in range(subtree_num):
                 selected = max_arg_numpy[subtree_idx]
                 if selected < schema.tab_num():
-                    if selected in label.tables:
+                    if selected in loss_tab_ids:
                         gold[subtree_idx, selected] = 1.
-                        gold[subtree_idx, entity_num - 1] = 0.
                 elif selected < schema.tab_num() + schema.col_num_except_star():
                     col_id = selected - schema.tab_num() + 1
-                    if col_id in label.cols:
+                    if col_id in loss_col_ids:
                         gold[subtree_idx, col_id - 1 + schema.tab_num()] = 1.
-                        gold[subtree_idx, entity_num - 1] = 0.
 
             losses.append(F.binary_cross_entropy(attention, gold.detach()))
             accs.append(1. if ontology == label else 0.)
@@ -319,7 +316,8 @@ class Generator(nn.Module):
             encoded_entity = torch.cat((encoded_tables, encoded_cols, no_entry.unsqueeze(0)), 0)
             attention = torch.mm(encoded_subtree, encoded_entity.transpose(0, 1))
             # (subtree x entity)
-            attention = torch.nn.functional.sigmoid(attention)
+            attention = torch.softmax(attention, dim=1)
+            # attention = torch.nn.functional.sigmoid(attention)
             # attention = torch.sum(attention, dim=0)
             # attention = torch.sigmoid(attention)
             batch_attentions.append(attention)
