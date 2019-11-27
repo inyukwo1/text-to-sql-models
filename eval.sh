@@ -19,7 +19,9 @@ CUDA_VISIBLE_DEVICES=$devices python -u eval.py --dataset ./data \
 --lr_scheduler \
 --lr_scheduler_gammar 0.5 \
 --att_vec_size 300 \
---load_model ./saved_model/IRNet_pretrained.model
+--bert 0 \
+--batch_size 6 \
+--load_model ./saved_model/bert_large1574683369/best_model.model
 
-python sem2SQL.py --data_path ./data --input_path predict_lf.json --output_path ${save_name}
+#python sem2SQL.py --data_path ./data --input_path predict_lf.json --output_path ${save_name}
 

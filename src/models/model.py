@@ -23,7 +23,7 @@ from transformers import *
 # Transformers has a unified API
 # for 8 transformer architectures and 30 pretrained weights.
 #          Model          | Tokenizer          | Pretrained weights shortcut
-MODELS = [(BertModel,       BertTokenizer,       'bert-base-uncased', 768),
+MODELS = [(BertModel,       BertTokenizer,       'bert-large-uncased', 1024),
           (OpenAIGPTModel,  OpenAIGPTTokenizer,  'openai-gpt'),
           (GPT2Model,       GPT2Tokenizer,       'gpt2'),
           (CTRLModel,       CTRLTokenizer,       'ctrl'),
@@ -82,7 +82,7 @@ class IRNet(BasicModel):
         self.prob_att = nn.Linear(args.att_vec_size, 1)
         self.prob_len = nn.Linear(1, 1)
 
-        self.col_type = nn.Linear(5, args.col_embed_size)
+        self.col_type = nn.Linear(8, args.col_embed_size)
         self.tab_type = nn.Linear(5, args.col_embed_size)
         self.sketch_encoder = nn.LSTM(args.action_embed_size, args.action_embed_size // 2, bidirectional=True,
                                       batch_first=True)

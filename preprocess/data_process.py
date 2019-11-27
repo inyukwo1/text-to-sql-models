@@ -15,6 +15,7 @@ from utils import symbol_filter, re_lemma, fully_part_header, group_header, part
 from utils import AGG, wordnet_lemmatizer
 from utils import load_dataSets
 from pattern.en import lemma
+import re
 
 def process_datas(datas, args):
     """
@@ -30,7 +31,7 @@ def process_datas(datas, args):
 
     db_values = dict()
 
-    with open('../data/tables.json') as f:
+    with open(args.table_path) as f:
         schema_tables = json.load(f)
     schema_dict = dict()
     for one_schema in schema_tables:
@@ -81,10 +82,10 @@ def process_datas(datas, args):
 
 
         entry['question_toks'] = symbol_filter(entry['question_toks'])
-        origin_question_toks = symbol_filter([x for x in entry['origin_question_toks'] if x.lower() != 'the'])
-        question_toks = [wordnet_lemmatizer.lemmatize(x.lower()) for x in entry['question_toks'] if x.lower() != 'the']
+        origin_question_toks = [x.lower() for x in re.findall(r"[^,.:;\"`?! ]+|[,.:;\"?!]", entry['question'].replace("'", " '"))]
+        question_toks = [wordnet_lemmatizer.lemmatize(x) for x in origin_question_toks]
 
-        entry['question_toks'] = question_toks
+        entry['question_toks'] = origin_question_toks
 
         table_names = []
         table_names_pattern = []
@@ -209,7 +210,7 @@ def process_datas(datas, args):
 
             end_idx, values = group_values(origin_question_toks, idx, num_toks)
             if values and (len(values) > 1 or question_toks[idx - 1] not in ['?', '.']):
-                tmp_toks = [wordnet_lemmatizer.lemmatize(x) for x in question_toks[idx: end_idx] if x.isalnum() is True]
+                tmp_toks = [wordnet_lemmatizer.lemmatize(x) for x in question_toks[idx: end_idx]]
                 assert len(tmp_toks) > 0, print(question_toks[idx: end_idx], values, question_toks, idx, end_idx)
                 pro_result = get_concept_result(tmp_toks, english_IsA)
                 if pro_result is None:
@@ -239,7 +240,7 @@ def process_datas(datas, args):
             if question_toks[idx] == ['ha']:
                 question_toks[idx] = ['have']
 
-            tok_concol.append([question_toks[idx]])
+            tok_concol.append([origin_question_toks[idx]])
             type_concol.append(['NONE'])
             idx += 1
             continue

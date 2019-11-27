@@ -11,7 +11,7 @@ from pattern.en import lemma
 from nltk.stem import WordNetLemmatizer
 
 VALUE_FILTER = ['what', 'how', 'list', 'give', 'show', 'find', 'id', 'order', 'when']
-AGG = ['average', 'sum', 'max', 'min', 'minimum', 'maximum', 'between']
+AGG = ['average', 'sum', 'max', 'min', 'minimum', 'maximum', 'between', 'many']
 
 wordnet_lemmatizer = WordNetLemmatizer()
 

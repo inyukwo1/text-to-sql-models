@@ -43,7 +43,8 @@ def evaluate(args):
 
     json_datas = utils.epoch_acc(model, args.batch_size, val_sql_data, val_table_data,
                            beam_size=args.beam_size)
-    # utils.eval_acc(json_datas, val_sql_data)
+    best_acc, sketch_acc = utils.eval_acc(json_datas, val_sql_data)
+    print("best: {}, sketch: {}".format(best_acc, sketch_acc))
     import json
     with open('./predict_lf.json', 'w') as f:
         json.dump(json_datas, f)
