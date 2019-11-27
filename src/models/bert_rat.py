@@ -125,15 +125,17 @@ class BERT_RAT(nn.Module):
         value_relations = torch.index_select(self.value_modules[idx], 0, relation_indices).view(B, relation_shape_x,
                                                                                                 relation_shape_y,
                                                                                                 self_attention_module.attention_head_size)
-        key_relation_anses = []
-        # query_layer: (B, num_attention_heads, i, attention_head_size)
-        for head in range(self_attention_module.num_attention_heads):
-            key_relation_anses.append(torch.matmul(query_layer[:,head,:,:].unsqueeze(2), key_relations.transpose(-1, -2)).squeeze(2))
-        key_relation_ans = torch.stack(key_relation_anses, dim=1)
 
         # Take the dot product between "query" and "key" to get the raw attention scores.
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
-        attention_scores = attention_scores + key_relation_ans
+        if 5 < idx < 7:
+            key_relation_anses = []
+            # query_layer: (B, num_attention_heads, i, attention_head_size)
+            for head in range(self_attention_module.num_attention_heads):
+                key_relation_anses.append(torch.matmul(query_layer[:,head,:,:].unsqueeze(2), key_relations.transpose(-1, -2)).squeeze(2))
+            key_relation_ans = torch.stack(key_relation_anses, dim=1)
+
+            attention_scores = attention_scores + key_relation_ans
 
         attention_scores = attention_scores / math.sqrt(self_attention_module.attention_head_size)
         if attention_mask is not None:
@@ -155,11 +157,12 @@ class BERT_RAT(nn.Module):
         # value_relations: (B, num_attention_heads, i, j, attention_head_size)
         context_layer = torch.matmul(attention_probs, value_layer)
         # value_relation_ans = torch.matmul(attention_probs.cpu().unsqueeze(3), value_relations.cpu()).squeeze(3)
-        value_relation_anses = []
-        for head in range(self_attention_module.num_attention_heads):
-            value_relation_anses.append(torch.matmul(attention_probs[:,head,:,:].unsqueeze(2), value_relations).squeeze(2))
-        value_relation_ans = torch.stack(value_relation_anses, dim=1)
-        context_layer = context_layer + value_relation_ans
+        if 5 < idx < 7:
+            value_relation_anses = []
+            for head in range(self_attention_module.num_attention_heads):
+                value_relation_anses.append(torch.matmul(attention_probs[:,head,:,:].unsqueeze(2), value_relations).squeeze(2))
+            value_relation_ans = torch.stack(value_relation_anses, dim=1)
+            context_layer = context_layer + value_relation_ans
 
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self_attention_module.all_head_size,)
