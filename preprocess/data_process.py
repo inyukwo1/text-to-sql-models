@@ -118,26 +118,6 @@ def process_datas(datas, args):
         nltk_result = nltk.pos_tag(question_toks)
         while idx < num_toks:
 
-            # check for aggregation
-            end_idx, agg = group_header(question_toks, idx, num_toks, AGG)
-            if agg:
-                tok_concol.append(question_toks[idx: end_idx])
-                type_concol.append(["agg"])
-                idx = end_idx
-                continue
-
-            if nltk_result[idx][1] == 'RBR' or nltk_result[idx][1] == 'JJR':
-                tok_concol.append([question_toks[idx]])
-                type_concol.append(['MORE'])
-                idx += 1
-                continue
-
-            if nltk_result[idx][1] == 'RBS' or nltk_result[idx][1] == 'JJS':
-                tok_concol.append([question_toks[idx]])
-                type_concol.append(['MOST'])
-                idx += 1
-                continue
-
             # fully header
             end_idx, header = fully_part_header(question_toks, idx, num_toks, header_toks)
             if header:
@@ -169,8 +149,25 @@ def process_datas(datas, args):
                 type_concol.append(["col"])
                 idx = end_idx
                 continue
+            # check for aggregation
+            end_idx, agg = group_header(question_toks, idx, num_toks, AGG)
+            if agg:
+                tok_concol.append(question_toks[idx: end_idx])
+                type_concol.append(["agg"])
+                idx = end_idx
+                continue
 
+            if nltk_result[idx][1] == 'RBR' or nltk_result[idx][1] == 'JJR':
+                tok_concol.append([question_toks[idx]])
+                type_concol.append(['MORE'])
+                idx += 1
+                continue
 
+            if nltk_result[idx][1] == 'RBS' or nltk_result[idx][1] == 'JJS':
+                tok_concol.append([question_toks[idx]])
+                type_concol.append(['MOST'])
+                idx += 1
+                continue
 
             # string match for Time Format
             if num2year(question_toks[idx]):
