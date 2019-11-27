@@ -225,6 +225,11 @@ def process_datas(datas, args):
                 continue
 
             end_idx, values, col = group_db(origin_question_toks, idx, num_toks, db_values[db_id])
+            if end_idx == idx + 1 and (nltk_result[idx][1] == 'VBZ' or nltk_result[idx][1] == 'IN'):
+                tok_concol.append([origin_question_toks[idx]])
+                type_concol.append(['NONE'])
+                idx += 1
+                continue
             if values:
                 tok_concol.append(question_toks[idx: end_idx])
                 type_concol.append(["db", col])
@@ -267,6 +272,6 @@ if __name__ == '__main__':
     process_result = process_datas(datas, args)
 
     with open(args.output, 'w') as f:
-        json.dump(datas, f)
+        json.dump(datas, f, indent=4)
 
 
