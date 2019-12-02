@@ -391,7 +391,8 @@ if __name__ == '__main__':
         datas[i]['rule_label'] = " ".join([str(x) for x in r])
         processed_data.append(datas[i])
 
+
     print('Finished %s datas and failed %s datas' % (len(processed_data), len(datas) - len(processed_data)))
     with open(args.output, 'w', encoding='utf8') as f:
-        f.write(json.dumps(processed_data))
+        f.write(json.dumps(processed_data, indent=4))
 
