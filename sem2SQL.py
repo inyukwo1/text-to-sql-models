@@ -186,7 +186,7 @@ def _transform(components, transformed_sql, col_set, table_names, schema):
     return transformed_sql
 
 
-def transform(query, schema, origin=None):
+def transform(query, schema, idxx, origin=None):
     preprocess_schema(schema)
     if origin is None:
         lf = query['model_result_replace']
@@ -226,7 +226,7 @@ def transform(query, schema, origin=None):
     else:
         _transform(components, transformed_sql, col_set, table_names, schema)
 
-    parse_result = to_str(transformed_sql, 1, schema)
+    parse_result = to_str(transformed_sql, 1, schema, idxx)
 
     parse_result = parse_result.replace('\t', '')
     return [parse_result]
@@ -252,7 +252,7 @@ def col_to_str(agg, col, tab, table_names, N=1):
             return '%s(%s.%s)' % (agg, table_alias, _col)
 
 
-def infer_from_clause(table_names, schema, columns):
+def infer_from_clause(table_names, schema, columns, idxx):
     tables = list(table_names.keys())
     # print(table_names)
     start_table = None
@@ -368,7 +368,49 @@ def infer_from_clause(table_names, schema, columns):
                     join_clause[idx + 1] += (item[0][1],)
                 found = True
                 break
+
+        # Just Join with none Primary/Foreign Columns
+        # Find any column with same name and type b/w tables.
         if not found:
+            for idx1, column1 in enumerate(schema['column_names_original']):
+                if column1[0] == current_tbl_idx:
+                    for idx2, column2 in enumerate(schema['column_names_original']):
+                        if column2[0] == next_tbl_idx:
+                            if column1[1] == column2[1] and schema['column_types'][idx1] == schema['column_types'][idx2]:
+                                join_clause[idx] += (column1[1], )
+                                join_clause[idx+1] += (column2[1], )
+                                found = True
+                                break
+                    if found:
+                        break
+        # Find Primary keys from both tables and check type
+        if not found:
+            pkey1 = []
+            pkey2 = []
+            # Get primary keys
+            for idx1, column1 in enumerate(schema['column_names_original']):
+                if column1[0] == current_tbl_idx:
+                    if idx1 in schema['primary_keys']:
+                        pkey1 += [idx1]
+            # Get primary keys
+            for idx2, column2 in enumerate(schema['column_names_original']):
+                if column2[0] == next_tbl_idx:
+                    if idx2 in schema['primary_keys']:
+                        pkey2 += [idx2]
+            # Compare
+            for item1 in pkey1:
+                for item2 in pkey2:
+                    if schema['column_types'][item1] == schema['column_types'][item2]:
+                        join_clause[idx] += (schema['column_names_original'][item1][1], )
+                        join_clause[idx + 1] += (schema['column_names_original'][item2][1], )
+                        found = True
+                        break
+                if found:
+                    break
+            if found:
+                break
+        if not found:
+            print('idx: ', idxx)
             ### 'FROM Condition with non Primary & Foreign Key Columns'
             return 'FROM ' + ' JOIN '.join(['%s AS %s' % (jc[0], jc[1]) for jc in join_clause])
 
@@ -433,7 +475,7 @@ def preprocess_schema(schema):
 
 
 
-def to_str(sql_json, N_T, schema, pre_table_names=None):
+def to_str(sql_json, N_T, schema, idxx, pre_table_names=None):
     all_columns = list()
     select_clause = list()
     table_names = dict()
@@ -488,7 +530,7 @@ def to_str(sql_json, N_T, schema, pre_table_names=None):
                         filters.append(None)
 
                     else:
-                        filters.append('%s %s %s' % (subject, op, '(' + to_str(value, len(table_names) + 1, schema) + ')'))
+                        filters.append('%s %s %s' % (subject, op, '(' + to_str(value, len(table_names) + 1, schema, idxx) + ')'))
                 if len(conjunctions):
                     filters.append(conjunctions.pop())
 
@@ -719,7 +761,7 @@ def to_str(sql_json, N_T, schema, pre_table_names=None):
         if key is None:
             continue
         new_table_names[table_names_replace[key]] = value
-    from_clause = infer_from_clause(new_table_names, schema, all_columns).strip()
+    from_clause = infer_from_clause(new_table_names, schema, all_columns, idxx).strip()
 
     # Change back table names
     table_names_replace_back = {}
@@ -752,8 +794,6 @@ def to_str(sql_json, N_T, schema, pre_table_names=None):
     return sql
 
 
-
-
 if __name__ == '__main__':
 
     arg_parser = argparse.ArgumentParser()
@@ -764,21 +804,28 @@ if __name__ == '__main__':
 
     # loading dataSets
     datas, schemas = load_dataSets(args)
-    alter_not_in(datas, schemas=schemas)
+    #alter_not_in(datas, schemas=schemas)
     alter_inter(datas)
     alter_column0(datas)
 
     index = range(len(datas))
     count = 0
     exception_count = 0
+
+    with open('post_semql.out', 'w') as f:
+        for data in datas:
+            f.write(data['model_result_replace'] + '\n')
+
     with open(args.output_path, 'w', encoding='utf8') as d:
         for i in index:
+            if i == 213:
+                stop = 1
             try:
-                result = transform(datas[i], schemas[datas[i]['db_id']])
+                result = transform(datas[i], schemas[datas[i]['db_id']], i)
                 d.write(result[0] + '\n')
                 count += 1
             except Exception as e:
-                result = transform(datas[i], schemas[datas[i]['db_id']], origin='Root1(3) Root(5) Sel(0) N(0) A(3) C(0) T(0)')
+                result = transform(datas[i], schemas[datas[i]['db_id']], i, origin='Root1(3) Root(5) Sel(0) N(0) A(3) C(0) T(0)')
                 exception_count += 1
                 d.write(result[0] + '\n')
                 count += 1
