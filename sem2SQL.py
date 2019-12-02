@@ -289,6 +289,16 @@ def infer_from_clause(table_names, schema, columns, idxx):
     else:
         # > 2
         # print('More than 2 table')
+        # Check if any table is necessary for connection
+        '''
+        new_tables = set()
+        for t1 in tables:
+            for t2 in tables:
+                _tables = list(schema['graph'].dijkstra(t1, t2))
+                for item in _tables:
+                    new_tables.add(item)
+        stop = 1
+        '''
         for t in tables:
             join_clause.append((t, table_names[t],))
 
@@ -614,6 +624,7 @@ def to_str(sql_json, N_T, schema, idxx, pre_table_names=None):
                 group_by_clause = "GROUP BY"
                 for (agg, col, tab) in sql_json['select']:
                     group_by_clause = group_by_clause + ' ' + col_to_str(agg, col, tab, table_names, N_T)
+                    break
 
             if len(group_by_clause) < 5:
                 if 'count(*)' in select_clause_str:
@@ -761,6 +772,24 @@ def to_str(sql_json, N_T, schema, idxx, pre_table_names=None):
         if key is None:
             continue
         new_table_names[table_names_replace[key]] = value
+    # Add table
+    if len(table_names) > 1:
+        tmp_tables = set()
+        for t1 in table_names.keys():
+            t1 = table_names_replace[t1]
+            for t2 in table_names.keys():
+                t2 = table_names_replace[t2]
+                if t1 in schema['graph'].vertices and t2 in schema['graph'].vertices:
+                    try:
+                        for item in list(schema['graph'].dijkstra(t1, t2)):
+                            tmp_tables.add(item)
+                    except:
+                        stop = 1
+
+        for item in list(tmp_tables):
+            if item not in new_table_names:
+                new_table_names[item] = 'T' + str(len(new_table_names) + 1)
+
     from_clause = infer_from_clause(new_table_names, schema, all_columns, idxx).strip()
 
     # Change back table names
@@ -818,13 +847,14 @@ if __name__ == '__main__':
 
     with open(args.output_path, 'w', encoding='utf8') as d:
         for i in index:
-            if i == 213:
+            if i == 464:
                 stop = 1
             try:
                 result = transform(datas[i], schemas[datas[i]['db_id']], i)
                 d.write(result[0] + '\n')
                 count += 1
             except Exception as e:
+                print(i)
                 result = transform(datas[i], schemas[datas[i]['db_id']], i, origin='Root1(3) Root(5) Sel(0) N(0) A(3) C(0) T(0)')
                 exception_count += 1
                 d.write(result[0] + '\n')
