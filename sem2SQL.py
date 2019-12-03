@@ -744,7 +744,9 @@ def to_str(sql_json, N_T, schema, idxx, pre_table_names=None):
                                 if len(group_by_clause) > 5:
                                     pass
                                 else:
-                                    raise RuntimeError('fail to convert')
+                                    (agg, col, tab) = sql_json['select'][0]
+                                    group_by_clause = 'GROUP BY ' + col_to_str(agg, col, tab, table_names, N_T)
+                                    #raise RuntimeError('fail to convert')
                         else:
                             group_by_clause = 'GROUP BY ' + col_to_str('none', find_primary[0],
                                                                        find_primary[1],
@@ -847,7 +849,7 @@ if __name__ == '__main__':
 
     with open(args.output_path, 'w', encoding='utf8') as d:
         for i in index:
-            if i == 464:
+            if i == 888:
                 stop = 1
             try:
                 result = transform(datas[i], schemas[datas[i]['db_id']], i)
