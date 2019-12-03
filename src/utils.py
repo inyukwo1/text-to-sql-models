@@ -236,6 +236,7 @@ def process(sql, table):
     process_dict['col_iter'] = col_iter
     process_dict['table_names'] = table_names
     process_dict['tab_set_iter'] = tab_set_iter
+    process_dict['relation_matrix'] = sql['relation_matrix']
 
     return process_dict
 
@@ -316,7 +317,8 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
             table_col_name=table_col_name,
             table_col_len=len(table_col_name),
             tokenized_src_sent=process_dict['col_set_type'],
-            tgt_actions=rule_label
+            tgt_actions=rule_label,
+            relation=process_dict['relation_matrix']
         )
         example.sql_json = copy.deepcopy(sql)
         example.db_id = sql['db_id']
@@ -342,12 +344,12 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
     perm=np.random.permutation(len(sql_data))
     cum_loss = 0.0
     st = 0
+    if bert_optimizer:
+        bert_optimizer.zero_grad()
+    optimizer.zero_grad()
     for st in tqdm(range(0, len(sql_data), batch_size)):
         ed = st+batch_size if st+batch_size < len(perm) else len(perm)
         examples = to_batch_seq(sql_data, table_data, perm, st, ed)
-        optimizer.zero_grad()
-        if bert_optimizer:
-            bert_optimizer.zero_grad()
 
         score = model.forward(examples)
         if score[0] is None:
@@ -366,9 +368,13 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
         loss.backward()
         if args.clip_grad > 0.:
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad)
-        optimizer.step()
-        if bert_optimizer:
-            bert_optimizer.step()
+        if st % (batch_size * 3) == 2:
+            optimizer.step()
+            if bert_optimizer:
+                bert_optimizer.step()
+            if bert_optimizer:
+                bert_optimizer.zero_grad()
+            optimizer.zero_grad()
         cum_loss += loss.data.cpu().numpy()*(ed - st)
     return cum_loss / len(sql_data)
 
@@ -392,14 +398,13 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
                 for x in results:
                     list_preds.append(" ".join(str(x.actions)))
             except Exception as e:
-                # print('Epoch Acc: ', e)
-                # print(results)
-                # print(results_all)
+                print('Error: {}'.format(e))
+                results_all = [[], []]
                 pred = ""
 
             simple_json = example.sql_json['pre_sql']
 
-            simple_json['sketch_result'] =  " ".join(str(x) for x in results_all[1])
+            simple_json['sketch_result'] = " ".join(str(x) for x in results_all[1])
             simple_json['model_result'] = pred
             simple_json['col_set_type'] = example.col_hot_type
             simple_json['tab_set_type'] = example.tab_hot_type
@@ -408,10 +413,10 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
         st = ed
     return json_datas
 
-def eval_acc(preds, sqls):
+import random
+def eval_acc(preds, sqls, log=False):
     sketch_correct, best_correct = 0, 0
     perm = list(range(len(preds)))
-    import random
     random.shuffle(perm)
     for q_idx in range(len(preds)):
         perm_idx = perm[q_idx]
@@ -419,7 +424,7 @@ def eval_acc(preds, sqls):
         sql = sqls[perm_idx]
         if pred['model_result'] == sql['rule_label']:
             best_correct += 1
-        else:
+        elif log:
             print("IDX: {}, origin IDX: {}".format(q_idx, perm_idx))
             print("DB ID: {}".format(sql['db_id']))
             print("QUESTION: {}".format(sql['question_arg']))
@@ -460,9 +465,9 @@ def load_data_new(sql_path, table_data, use_small=False):
 def load_dataset(dataset_dir, use_small=False):
     print("Loading from datasets...")
 
-    TABLE_PATH = os.path.join(dataset_dir, "wikitablequestions/int_tables.json")
-    TRAIN_PATH = os.path.join(dataset_dir, "wikitablequestions/int_train.json")
-    DEV_PATH = os.path.join(dataset_dir, "wikitablequestions/dev_nolem.json")
+    TABLE_PATH = os.path.join(dataset_dir, "tables.json")
+    TRAIN_PATH = os.path.join(dataset_dir, "train_nolem.json")
+    DEV_PATH = os.path.join(dataset_dir, "dev_nolem.json")
     with open(TABLE_PATH) as inf:
         print("Loading data from %s"%TABLE_PATH)
         table_data = json.load(inf)

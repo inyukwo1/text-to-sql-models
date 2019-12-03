@@ -34,6 +34,7 @@ def load_dataSets(args):
             if cc not in tmp_col:
                 tmp_col.append(cc)
         table['col_set'] = tmp_col
+        # table['col_set'] = table['col_set'][1:]
         db_name = table['db_id']
         tabel_name.add(db_name)
         table['schema_content'] = [col[1] for col in table['column_names']]
@@ -60,8 +61,12 @@ def group_header(toks, idx, num_toks, header_toks):
         sub_toks = toks[idx: endIdx]
         sub_toks = " ".join(sub_toks)
         if sub_toks in header_toks:
-            return endIdx, sub_toks
-    return idx, None
+            header_tok_indices = []
+            for head_idx, head_val in enumerate(header_toks):
+                if head_val == sub_toks:
+                    header_tok_indices.append(head_idx)
+            return endIdx, sub_toks, header_tok_indices
+    return idx, None, None
 
 def fully_part_header(toks, idx, num_toks, header_toks):
     for endIdx in reversed(range(idx + 1, num_toks+1)):
@@ -69,8 +74,12 @@ def fully_part_header(toks, idx, num_toks, header_toks):
         if len(sub_toks) > 1:
             sub_toks = " ".join(sub_toks)
             if sub_toks in header_toks:
-                return endIdx, sub_toks
-    return idx, None
+                header_tok_indices = []
+                for head_idx, head_val in enumerate(header_toks):
+                    if head_val == sub_toks:
+                        header_tok_indices.append(head_idx)
+                return endIdx, sub_toks, header_tok_indices
+    return idx, None, None
 
 def partial_header(toks, idx, header_toks):
     def check_in(list_one, list_two):
@@ -83,14 +92,16 @@ def partial_header(toks, idx, header_toks):
         if len(sub_toks) > 1:
             flag_count = 0
             tmp_heads = None
+            header_tok_indices = []
             for head_idx, heads in enumerate(header_toks):
                 if check_in(sub_toks, heads):
                     flag_count += 1
                     tmp_heads = heads
                     headers.append(heads)
+                    header_tok_indices.append(head_idx)
             if flag_count > 0:
-                return endIdx, tmp_heads, headers
-    return idx, None, None
+                return endIdx, tmp_heads, headers, header_tok_indices
+    return idx, None, None, None
 
 def symbol_filter(questions):
     question_tmp_q = []
@@ -114,15 +125,17 @@ def symbol_filter(questions):
 
 def group_db(toks, idx, num_toks, col_value_set):
     cols = []
+    col_indices = []
     for endIdx in reversed(range(idx + 1, num_toks + 1)):
         sub_toks = toks[idx: endIdx]
         sub_toks = " ".join(sub_toks)
-        for col in col_value_set:
+        for col_idx, col in enumerate(col_value_set):
             if sub_toks.lower() in col_value_set[col] or lemma(sub_toks.lower()) in col_value_set[col]:
                 cols.append(col)
+                col_indices.append(col_idx)
         if cols:
-            return endIdx, sub_toks, cols
-    return idx, None, cols
+            return endIdx, sub_toks, cols, col_indices
+    return idx, None, cols, None
 
 def group_values(toks, idx, num_toks):
     def check_isupper(tok_lists):
