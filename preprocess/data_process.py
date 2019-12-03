@@ -45,7 +45,13 @@ def process_datas(datas, args):
     for entry in datas:
         db_id = entry['db_id']
         if db_id not in db_values:
-            conn = sqlite3.connect("../data/database/{}/{}.sqlite".format(db_id, db_id))
+            schema_json = schema_dict[db_id]
+            primary_foreigns = set()
+            for f, p in schema_json["foreign_keys"]:
+                primary_foreigns.add(f)
+                primary_foreigns.add(p)
+
+            conn = sqlite3.connect("../data/wikitablequestions/database/{}/{}.sqlite".format(db_id, db_id))
             # conn.text_factory = bytes
             cursor = conn.cursor()
 
@@ -62,8 +68,10 @@ def process_datas(datas, args):
             col_value_set = dict()
             for table in tables:
                 for col in schema[table]:
+                    col_idx = schema_json["only_cnames"].index(col)
+                    if col_idx in primary_foreigns and schema_json["column_types"][col_idx] == "number":
+                        continue
                     cursor.execute("SELECT \"{}\" FROM \"{}\"".format(col, table))
-                    col_idx = schema_dict[db_id]["only_cnames"].index(col)
                     col = entry["names"][col_idx]
                     value_set = set()
                     try:
@@ -82,7 +90,7 @@ def process_datas(datas, args):
 
 
         entry['question_toks'] = symbol_filter(entry['question_toks'])
-        origin_question_toks = [x.lower() for x in re.findall(r"[^,.:;\"`?! ]+|[,.:;\"?!]", entry['question'].replace("'", " '"))]
+        origin_question_toks = [x.lower() for x in re.findall(r"[^,.():;\"`?! ]+|[,.():;\"?!]", entry['question'].replace("'", " ' "))]
         question_toks = [wordnet_lemmatizer.lemmatize(x) for x in origin_question_toks]
 
         entry['question_toks'] = origin_question_toks
@@ -143,10 +151,10 @@ def process_datas(datas, args):
                 continue
 
             # check for partial column
-            end_idx, tname = partial_header(question_toks, idx, header_toks_list)
+            end_idx, tname, headers = partial_header(question_toks, idx, header_toks_list)
             if tname:
                 tok_concol.append(tname)
-                type_concol.append(["col"])
+                type_concol.append(["col"] + headers)
                 idx = end_idx
                 continue
             # check for aggregation
@@ -221,15 +229,24 @@ def process_datas(datas, args):
                 idx = end_idx
                 continue
 
-            end_idx, values, col = group_db(origin_question_toks, idx, num_toks, db_values[db_id])
-            if end_idx == idx + 1 and (nltk_result[idx][1] == 'VBZ' or nltk_result[idx][1] == 'IN'):
+            end_idx, values, cols = group_db(origin_question_toks, idx, num_toks, db_values[db_id])
+            if end_idx == idx + 1 and (nltk_result[idx][1] == 'VBZ'
+                                       or nltk_result[idx][1] == 'IN'
+                                       or nltk_result[idx][1] == 'CC'
+                                       or nltk_result[idx][1] == 'DT'
+                                       or origin_question_toks[idx] == "'"
+                                       or (nltk_result[idx][1] == 'VBP' and origin_question_toks[idx] == 'are')
+                                       or (nltk_result[idx][1] == 'VBP' and origin_question_toks[idx] == 'do')
+                                       or (nltk_result[idx][1] == 'VBP' and origin_question_toks[idx] == 'doe')
+                                       or (nltk_result[idx][1] == 'VBP' and origin_question_toks[idx] == 'does')):
                 tok_concol.append([origin_question_toks[idx]])
                 type_concol.append(['NONE'])
                 idx += 1
                 continue
             if values:
                 tok_concol.append(question_toks[idx: end_idx])
-                type_concol.append(["db", col])
+
+                type_concol.append(["db"] + cols)
                 idx = end_idx
                 continue
 

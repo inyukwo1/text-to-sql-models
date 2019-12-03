@@ -130,7 +130,9 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
         elif t == 'table':
             one_hot_type[count_q][0] = 1
             try:
-                tab_set_type[tab_set_iter.index(question_arg[count_q])][1] = 5
+                for tab_set_idx in range(len(tab_set_iter)):
+                    if tab_set_iter[tab_set_idx] == question_arg[count_q]:
+                        tab_set_type[tab_set_idx][1] = 5
                 question_arg[count_q] = ['[table]'] + question_arg[count_q]
             except:
                 print(tab_set_iter, question_arg[count_q])
@@ -138,7 +140,13 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
         elif t == 'col':
             one_hot_type[count_q][1] = 1
             try:
-                col_set_type[col_set_iter.index(question_arg[count_q])][1] = 5
+                if len(t_q) > 1:
+                    for col_name_idx in range(1, len(t_q)):
+                        col_set_type[col_set_iter.index(t_q[col_name_idx])][8] += 1
+                else:
+                    for col_set_idx in range(len(col_set_iter)):
+                        if col_set_iter[col_set_idx] == question_arg[count_q]:
+                            col_set_type[col_set_idx][1] = 5
                 question_arg[count_q] = ['[column]'] + question_arg[count_q]
             except:
                 print(col_set_iter, question_arg[count_q])
@@ -154,16 +162,19 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
             question_arg[count_q] = ['[value]'] + question_arg[count_q]
         elif t == 'db':
             one_hot_type[count_q][6] = 1
-            c_cand = [wordnet_lemmatizer.lemmatize(v).lower() for v in t_q[1].split(" ")]
             question_arg[count_q] = ['[db]'] + question_arg[count_q]
-            col_set_type[col_set_iter.index(c_cand)][4] = 5
+            for col_name_idx in range(1, len(t_q)):
+                c_cand = [wordnet_lemmatizer.lemmatize(v).lower() for v in t_q[col_name_idx].split(" ")]
+                col_set_type[col_set_iter.index(c_cand)][4] = 5
         else:
             if len(t_q) == 1:
                 for col_probase in t_q:
                     if col_probase == 'asd':
                         continue
                     try:
-                        col_set_type[sql['col_set'].index(col_probase)][2] = 5
+                        for col_set_idx in range(len(sql['col_set'])):
+                            if sql['col_set'][col_set_idx] == col_probase:
+                                col_set_type[col_set_idx][2] = 5
                         question_arg[count_q] = ['[value]'] + question_arg[count_q]
                     except:
                         print(sql['col_set'], col_probase)
@@ -173,7 +184,9 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
                 for col_probase in t_q:
                     if col_probase == 'asd':
                         continue
-                    col_set_type[sql['col_set'].index(col_probase)][3] += 1
+                    for col_set_idx in range(len(sql['col_set'])):
+                        if sql['col_set'][col_set_idx] == col_probase:
+                            col_set_type[col_set_idx][3] += 1
 
 def process(sql, table):
 
@@ -195,7 +208,7 @@ def process(sql, table):
     question_arg_type = sql['question_arg_type']
     one_hot_type = np.zeros((len(question_arg_type), 7))
 
-    col_set_type = np.zeros((len(col_set_iter), 8)) # 5:primary 6:foreign 7: multi
+    col_set_type = np.zeros((len(col_set_iter), 9)) # 5:primary 6:foreign 7: multi
     tab_set_type = np.zeros((len(table_names), 5))
 
     for col_set_idx, col_name in  enumerate(col_set_iter):
