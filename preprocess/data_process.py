@@ -50,8 +50,8 @@ def process_datas(datas, args):
             for f, p in schema_json["foreign_keys"]:
                 primary_foreigns.add(f)
                 primary_foreigns.add(p)
-
-            conn = sqlite3.connect("../data/wikitablequestions/database/{}/{}.sqlite".format(db_id, db_id))
+            db_id_db = "table_" + db_id.replace("-", "_")
+            conn = sqlite3.connect("../data/database_wiki/{}/{}.sqlite".format(db_id_db, db_id_db))
             # conn.text_factory = bytes
             cursor = conn.cursor()
 
@@ -67,11 +67,11 @@ def process_datas(datas, args):
                 schema[table] = [str(col[1].lower()) for col in cursor.fetchall()]
             col_value_set = dict()
             for table in tables:
-                for col in schema[table]:
-                    col_idx = schema_json["only_cnames"].index(col)
+                for col_idx in range(len(schema[table])):
+                    # col_idx = schema_json["only_cnames"].index(col)
                     if col_idx in primary_foreigns and schema_json["column_types"][col_idx] == "number":
                         continue
-                    cursor.execute("SELECT \"{}\" FROM \"{}\"".format(col, table))
+                    cursor.execute("SELECT \"{}\" FROM \"{}\"".format("col()".format(col_idx), table))
                     col = entry["names"][col_idx]
                     value_set = set()
                     try:

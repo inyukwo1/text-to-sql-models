@@ -29,7 +29,7 @@ def train(args):
 
     grammar = semQL.Grammar()
     sql_data, table_data, val_sql_data,\
-    val_table_data= utils.load_dataset(args.dataset, use_small=args.toy)
+    val_table_data, augment_sql_data, augment_table_data= utils.load_dataset(args.dataset, use_small=args.toy)
 
     model = IRNet(args, grammar)
 
@@ -80,7 +80,7 @@ def train(args):
             if scheduler_bert:
                 scheduler_bert.step()
             epoch_begin = time.time()
-            loss = utils.epoch_train(model, optimizer, bert_optimizer, args.batch_size, sql_data, table_data, args,
+            loss = utils.epoch_train(model, optimizer, bert_optimizer, args.batch_size, sql_data, table_data, augment_sql_data, augment_table_data, args,
                                loss_epoch_threshold=args.loss_epoch_threshold,
                                sketch_loss_coefficient=args.sketch_loss_coefficient)
             epoch_end = time.time()

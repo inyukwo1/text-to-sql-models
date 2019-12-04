@@ -16,6 +16,7 @@ import os
 import torch
 from nltk.stem import WordNetLemmatizer
 from tqdm import tqdm
+import random
 
 from src.dataset import Example
 from src.rule import lf
@@ -328,7 +329,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
     else:
         return examples
 
-def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_data,
+def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_data, augment_sql_data, augment_table_data,
                 args, epoch=0, loss_epoch_threshold=20, sketch_loss_coefficient=0.2):
     model.train()
     # shuffle
@@ -342,9 +343,16 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
     perm=np.random.permutation(len(sql_data))
     cum_loss = 0.0
     st = 0
-    for st in tqdm(range(0, len(sql_data), batch_size)):
+    ed = 0
+    while ed != len(perm):
         ed = st+batch_size if st+batch_size < len(perm) else len(perm)
-        examples = to_batch_seq(sql_data, table_data, perm, st, ed)
+        if random.randint(0, 100) < 40:
+            rand_st = random.choice(range(len(augment_sql_data) - batch_size))
+            rand_ed = rand_st + batch_size
+            examples = to_batch_seq(augment_sql_data, augment_table_data, range(len(augment_sql_data)), rand_st, rand_ed)
+        else:
+            examples = to_batch_seq(sql_data, table_data, perm, st, ed)
+            st += batch_size
         optimizer.zero_grad()
         if bert_optimizer:
             bert_optimizer.zero_grad()
@@ -369,7 +377,7 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
         optimizer.step()
         if bert_optimizer:
             bert_optimizer.step()
-        cum_loss += loss.data.cpu().numpy()*(ed - st)
+        cum_loss += loss.data.cpu().numpy()*len(examples)
     return cum_loss / len(sql_data)
 
 def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
@@ -460,17 +468,19 @@ def load_data_new(sql_path, table_data, use_small=False):
 def load_dataset(dataset_dir, use_small=False):
     print("Loading from datasets...")
 
-    TABLE_PATH = os.path.join(dataset_dir, "wikitablequestions/int_tables.json")
-    TRAIN_PATH = os.path.join(dataset_dir, "wikitablequestions/int_train.json")
-    DEV_PATH = os.path.join(dataset_dir, "wikitablequestions/dev_nolem.json")
+    TABLE_PATH = os.path.join(dataset_dir, "all_tables.json")
+    TRAIN_PATH = os.path.join(dataset_dir, "train_nolem.json")
+    TRAIN_AUGMENT_PATH = os.path.join(dataset_dir, "augmented.json")
+    DEV_PATH = os.path.join(dataset_dir, "dev_nolem.json")
     with open(TABLE_PATH) as inf:
         print("Loading data from %s"%TABLE_PATH)
         table_data = json.load(inf)
 
     train_sql_data, train_table_data = load_data_new(TRAIN_PATH, table_data, use_small=use_small)
+    train_augment_data, train_augment_table_data = load_data_new(TRAIN_AUGMENT_PATH, table_data, use_small=use_small)
     val_sql_data, val_table_data = load_data_new(DEV_PATH, table_data, use_small=use_small)
 
-    return train_sql_data, train_table_data, val_sql_data, val_table_data
+    return train_sql_data, train_table_data, val_sql_data, val_table_data, train_augment_data, train_augment_table_data
 
 
 def save_checkpoint(model, checkpoint_name):
