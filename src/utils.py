@@ -401,8 +401,8 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
 
             simple_json['sketch_result'] =  " ".join(str(x) for x in results_all[1])
             simple_json['model_result'] = pred
-            simple_json['col_set_type'] = example.col_hot_type
-            simple_json['tab_set_type'] = example.tab_hot_type
+            #simple_json['col_set_type'] = example.col_hot_type
+            #simple_json['tab_set_type'] = example.tab_hot_type
 
             json_datas.append(simple_json)
         st = ed
@@ -410,33 +410,36 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
 
 def eval_acc(preds, sqls):
     sketch_correct, best_correct = 0, 0
-    perm = list(range(len(preds)))
-    import random
-    random.shuffle(perm)
     for q_idx in range(len(preds)):
-        perm_idx = perm[q_idx]
-        pred = preds[perm_idx]
-        sql = sqls[perm_idx]
+        pred = preds[q_idx]
+        sql = sqls[q_idx]
+        print("query idx: {}".format(q_idx))
+        print("QUESTION: {}".format(sql['question_arg']))
+        print("PRED: {}".format(pred['model_result']))
+        print("GOLD: {}".format(sql['rule_label']))
+        print("QUERY:{}".format(sql['query']))
         if pred['model_result'] == sql['rule_label']:
             best_correct += 1
+            print('CORRECT!')
         else:
-            print("IDX: {}, origin IDX: {}".format(q_idx, perm_idx))
+            print('WRONG!')
+            '''
             print("DB ID: {}".format(sql['db_id']))
             print("QUESTION: {}".format(sql['question_arg']))
             print("QUESTION: {}".format(sql['question_arg_type']))
             print("QUERY: {}".format(sql["query"]))
             print("tables: {}".format(list(zip(range(len(sql["table_names"])), sql["table_names"]))))
-            print("{}".format(pred["tab_set_type"].transpose((1, 0))))
+            #print("{}".format(pred["tab_set_type"].transpose((1, 0))))
             print("col set: {}".format(list(zip(range(len(sql["col_set"])), sql["col_set"]))))
-            print("{}".format(pred["col_set_type"].transpose((1, 0))))
+            #print("{}".format(pred["col_set_type"].transpose((1, 0))))
             print("PRED: {}".format(pred['model_result']))
             print("GOLD: {}".format(sql['rule_label']))
             print("")
+            '''
 
         tmp = ' '.join([t for t in pred['rule_label'].split(' ') if t.split('(')[0] not in ['A', 'C', 'T']])
         if pred['sketch_result'] == tmp:
             sketch_correct += 1
-
 
     return best_correct / len(preds), sketch_correct / len(preds)
 
@@ -460,9 +463,9 @@ def load_data_new(sql_path, table_data, use_small=False):
 def load_dataset(dataset_dir, use_small=False):
     print("Loading from datasets...")
 
-    TABLE_PATH = os.path.join(dataset_dir, "wikitablequestions/int_tables.json")
-    TRAIN_PATH = os.path.join(dataset_dir, "wikitablequestions/int_train.json")
-    DEV_PATH = os.path.join(dataset_dir, "wikitablequestions/dev_nolem.json")
+    TABLE_PATH = os.path.join(dataset_dir, "tables.json")
+    TRAIN_PATH = os.path.join(dataset_dir, "train.json")
+    DEV_PATH = os.path.join(dataset_dir, "dev.json")
     with open(TABLE_PATH) as inf:
         print("Loading data from %s"%TABLE_PATH)
         table_data = json.load(inf)

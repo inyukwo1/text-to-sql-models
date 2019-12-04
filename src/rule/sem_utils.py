@@ -113,7 +113,7 @@ def find_table(cur_table, origin_table_names, question_arg_type, question_arg):
 
 
 def alter_not_in(datas, schemas):
-    for d in datas:
+    for idx, d in enumerate(datas):
         if 'Filter(19)' in d['model_result']:
             current_table = schemas[d['db_id']]
             current_table['schema_content_clean'] = [x[1] for x in current_table['column_names']]
@@ -195,7 +195,8 @@ def alter_column0(datas):
     zero_count = 0
     count = 0
     result = []
-    for d in datas:
+    '''
+    for idx, d in enumerate(datas):
         if 'C(0)' in d['model_result']:
             pattern = regex.compile('C\(.*?\) T\(.*?\)')
             result_pattern = list(set(pattern.findall(d['model_result'])))
@@ -298,7 +299,7 @@ def alter_column0(datas):
                                                  N=2,
                                                  origin_name=origin_table_names)
                     result.append((d['query'], d['question'], table_result, d))
-
+    '''
     for re in result:
         table_names = [[lemma(x) for x in names.split(' ')] for names in re[3]['table_names']]
         origin_table_names = [[x for x in names.split(' ')] for names in re[3]['table_names']]
