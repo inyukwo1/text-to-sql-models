@@ -8,7 +8,7 @@ def _get_clones(module, N):
 
 
 class RATransformerEncoder(nn.Module):
-    def __init__(self, d_model, nhead, nrelation=0, dim_feedforward=2048, dropout=0.1, num_layers=6):
+    def __init__(self, d_model, nhead, nrelation=0, dim_feedforward=2048, dropout=0.1, num_layers=3):
         super(RATransformerEncoder, self).__init__()
         encoder_layer = RATransformerEncoderLayer(d_model, nhead, nrelation, dim_feedforward, dropout)
         self.layers = _get_clones(encoder_layer, num_layers)

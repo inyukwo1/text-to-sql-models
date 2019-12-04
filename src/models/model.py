@@ -26,7 +26,7 @@ from preprocess.relation_types import RELATION_LIST
 # Transformers has a unified API
 # for 8 transformer architectures and 30 pretrained weights.
 #          Model          | Tokenizer          | Pretrained weights shortcut
-MODELS = [(BertModel,       BertTokenizer,       'bert-base-uncased', 768),
+MODELS = [(BertModel,       BertTokenizer,       'bert-large-uncased', 1024),
           (OpenAIGPTModel,  OpenAIGPTTokenizer,  'openai-gpt'),
           (GPT2Model,       GPT2Tokenizer,       'gpt2'),
           (CTRLModel,       CTRLTokenizer,       'ctrl'),
@@ -122,8 +122,8 @@ class IRNet(BasicModel):
         self.without_bert_params = list(self.parameters(recurse=True))
         if args.bert != -1:
             model_class, tokenizer_class, pretrained_weight, dim = MODELS[args.bert]
-            # self.transformer_encoder = model_class.from_pretrained(pretrained_weight)
-            self.bert_rat = BERT_RAT(len(RELATION_LIST))
+            self.transformer_encoder = model_class.from_pretrained(pretrained_weight)
+            # self.bert_rat = BERT_RAT(len(RELATION_LIST))
             self.tokenizer = tokenizer_class.from_pretrained(pretrained_weight)
             # self.tokenizer.add_special_tokens({"additional_special_tokens": ["[table]", "[column]", "[value]"]})
             self.transformer_dim = dim
@@ -180,44 +180,44 @@ class IRNet(BasicModel):
             schema_embedding = schema_embedding + tab_type_var
         else:
             src_encodings, table_embedding, schema_embedding, last_cell = self.transformer_encode(batch, examples)
-            # src_lens = [len(one) for one in src_encodings]
-            # table_lens = [len(one) for one in table_embedding]
-            # schema_lens = [len(one) for one in schema_embedding]
-            #
-            # cat_embeddings = [one_src + one_table + one_schema for one_src, one_table, one_schema in zip(src_encodings, table_embedding, schema_embedding)]
-            # cat_lens = [len(one) for one in cat_embeddings]
-            #
-            # for b in range(len(cat_embeddings)):
-            #     cat_embeddings[b] += [torch.zeros_like(cat_embeddings[b][0])] * (max(cat_lens) - len(cat_embeddings[b]))
-            #     cat_embeddings[b] = torch.stack(cat_embeddings[b])
-            # cat_embeddings = torch.stack(cat_embeddings)
-            # concat_encodings = torch.cat((last_cell.unsqueeze(1), cat_embeddings), dim=1)
-            # rat_encodings = concat_encodings
-            # concat_encodings = concat_encodings.transpose(0, 1)
-            # rat_encodings = self.rat_encoder(concat_encodings, batch.relation).transpose(0, 1)
-            #
-            # last_cell = rat_encodings[:,0,:]
-            # src_encodings = []
-            # table_embedding = []
-            # schema_embedding = []
-            # for b, (src_len, table_len, schema_len) in enumerate(zip(src_lens, table_lens, schema_lens)):
-            #     src_encodings.append(rat_encodings[b, 1:1 + src_len, :])
-            #     table_embedding.append(rat_encodings[b, 1+src_len:1+src_len+table_len, :])
-            #     schema_embedding.append(rat_encodings[b, 1+src_len+table_len:1+src_len+table_len+schema_len,:])
-            # for b in range(len(src_lens)):
-            #     if src_lens[b] < max(src_lens):
-            #         padding = torch.zeros((max(src_lens) - src_lens[b], args.hidden_size), dtype=src_encodings[b].dtype, device=src_encodings[b].device)
-            #         src_encodings[b] = torch.cat((src_encodings[b], padding), dim=0)
-            #     if table_lens[b] < max(table_lens):
-            #         padding = torch.zeros((max(table_lens) - table_lens[b], args.hidden_size), dtype=table_embedding[b].dtype, device=table_embedding[b].device)
-            #         table_embedding[b] = torch.cat((table_embedding[b], padding), dim=0)
-            #     if schema_lens[b] < max(schema_lens):
-            #         padding = torch.zeros((max(schema_lens) - schema_lens[b], args.hidden_size), dtype=schema_embedding[b].dtype, device=schema_embedding[b].device)
-            #         schema_embedding[b] = torch.cat((schema_embedding[b], padding), dim=0)
-            #
-            # src_encodings = torch.stack(src_encodings)
-            # table_embedding = torch.stack(table_embedding)
-            # schema_embedding = torch.stack(schema_embedding)
+            src_lens = [len(one) for one in src_encodings]
+            table_lens = [len(one) for one in table_embedding]
+            schema_lens = [len(one) for one in schema_embedding]
+
+            cat_embeddings = [one_src + one_table + one_schema for one_src, one_table, one_schema in zip(src_encodings, table_embedding, schema_embedding)]
+            cat_lens = [len(one) for one in cat_embeddings]
+
+            for b in range(len(cat_embeddings)):
+                cat_embeddings[b] += [torch.zeros_like(cat_embeddings[b][0])] * (max(cat_lens) - len(cat_embeddings[b]))
+                cat_embeddings[b] = torch.stack(cat_embeddings[b])
+            cat_embeddings = torch.stack(cat_embeddings)
+            concat_encodings = torch.cat((last_cell.unsqueeze(1), cat_embeddings), dim=1)
+            rat_encodings = concat_encodings
+            concat_encodings = concat_encodings.transpose(0, 1)
+            rat_encodings = self.rat_encoder(concat_encodings, batch.relation).transpose(0, 1)
+
+            last_cell = rat_encodings[:,0,:]
+            src_encodings = []
+            table_embedding = []
+            schema_embedding = []
+            for b, (src_len, table_len, schema_len) in enumerate(zip(src_lens, table_lens, schema_lens)):
+                src_encodings.append(rat_encodings[b, 1:1 + src_len, :])
+                table_embedding.append(rat_encodings[b, 1+src_len:1+src_len+table_len, :])
+                schema_embedding.append(rat_encodings[b, 1+src_len+table_len:1+src_len+table_len+schema_len,:])
+            for b in range(len(src_lens)):
+                if src_lens[b] < max(src_lens):
+                    padding = torch.zeros((max(src_lens) - src_lens[b], args.hidden_size), dtype=src_encodings[b].dtype, device=src_encodings[b].device)
+                    src_encodings[b] = torch.cat((src_encodings[b], padding), dim=0)
+                if table_lens[b] < max(table_lens):
+                    padding = torch.zeros((max(table_lens) - table_lens[b], args.hidden_size), dtype=table_embedding[b].dtype, device=table_embedding[b].device)
+                    table_embedding[b] = torch.cat((table_embedding[b], padding), dim=0)
+                if schema_lens[b] < max(schema_lens):
+                    padding = torch.zeros((max(schema_lens) - schema_lens[b], args.hidden_size), dtype=schema_embedding[b].dtype, device=schema_embedding[b].device)
+                    schema_embedding[b] = torch.cat((schema_embedding[b], padding), dim=0)
+
+            src_encodings = torch.stack(src_encodings)
+            table_embedding = torch.stack(table_embedding)
+            schema_embedding = torch.stack(schema_embedding)
 
         utterance_encodings_sketch_linear = self.att_sketch_linear(src_encodings)
         utterance_encodings_lf_linear = self.att_lf_linear(src_encodings)
@@ -506,7 +506,8 @@ class IRNet(BasicModel):
         encoded_questions = torch.tensor(encoded_questions)
         if torch.cuda.is_available():
             encoded_questions = encoded_questions.cuda()
-        embedding = self.bert_rat(encoded_questions, relation_matrix_padded)[0]
+        # embedding = self.bert_rat(encoded_questions, relation_matrix_padded)[0]
+        embedding = self.transformer_encoder(encoded_questions)[0]
         src_encodings = []
         table_embedding = []
         schema_embedding = []
@@ -533,7 +534,7 @@ class IRNet(BasicModel):
                 tab_encoding = torch.cat((lstm_out[-1, 0], lstm_out[0, 1]))
                 one_tab_encodings.append(tab_encoding)
             schema_embedding.append(one_tab_encodings)
-        # return src_encodings, table_embedding, schema_embedding, embedding[:,0,:]
+        return src_encodings, table_embedding, schema_embedding, embedding[:,0,:]
 
         max_src_len = max([len(one_q_encodings) for one_q_encodings in src_encodings])
         max_col_len = max([len(one_col_encodings) for one_col_encodings in table_embedding])
@@ -598,49 +599,49 @@ class IRNet(BasicModel):
             schema_embedding = schema_embedding + tab_type_var
         else:
             src_encodings, table_embedding, schema_embedding, last_cell = self.transformer_encode(batch, [examples])
-            # src_lens = [len(one) for one in src_encodings]
-            # table_lens = [len(one) for one in table_embedding]
-            # schema_lens = [len(one) for one in schema_embedding]
-            #
-            # cat_embeddings = [one_src + one_table + one_schema for one_src, one_table, one_schema in
-            #                   zip(src_encodings, table_embedding, schema_embedding)]
-            # cat_lens = [len(one) for one in cat_embeddings]
-            #
-            # for b in range(len(cat_embeddings)):
-            #     cat_embeddings[b] += [torch.zeros_like(cat_embeddings[b][0])] * (max(cat_lens) - len(cat_embeddings[b]))
-            #     cat_embeddings[b] = torch.stack(cat_embeddings[b])
-            # cat_embeddings = torch.stack(cat_embeddings)
-            # concat_encodings = torch.cat((last_cell.unsqueeze(1), cat_embeddings), dim=1)
-            # rat_encodings = concat_encodings
-            # concat_encodings = concat_encodings.transpose(0, 1)
-            # rat_encodings = self.rat_encoder(concat_encodings, batch.relation).transpose(0, 1)
-            #
-            # last_cell = rat_encodings[:, 0, :]
-            # src_encodings = []
-            # table_embedding = []
-            # schema_embedding = []
-            # for b, (src_len, table_len, schema_len) in enumerate(zip(src_lens, table_lens, schema_lens)):
-            #     src_encodings.append(rat_encodings[b, 1:1 + src_len, :])
-            #     table_embedding.append(rat_encodings[b, 1 + src_len:1 + src_len + table_len, :])
-            #     schema_embedding.append(
-            #         rat_encodings[b, 1 + src_len + table_len:1 + src_len + table_len + schema_len, :])
-            # for b in range(len(src_lens)):
-            #     if src_lens[b] < max(src_lens):
-            #         padding = torch.zeros((max(src_lens) - src_lens[b], args.hidden_size), dtype=src_encodings[b].dtype,
-            #                               device=src_encodings[b].device)
-            #         src_encodings[b] = torch.cat((src_encodings[b], padding), dim=0)
-            #     if table_lens[b] < max(table_lens):
-            #         padding = torch.zeros((max(table_lens) - table_lens[b], args.hidden_size),
-            #                               dtype=table_embedding[b].dtype, device=table_embedding[b].device)
-            #         table_embedding[b] = torch.cat((table_embedding[b], padding), dim=0)
-            #     if schema_lens[b] < max(schema_lens):
-            #         padding = torch.zeros((max(schema_lens) - schema_lens[b], args.hidden_size),
-            #                               dtype=schema_embedding[b].dtype, device=schema_embedding[b].device)
-            #         schema_embedding[b] = torch.cat((schema_embedding[b], padding), dim=0)
-            #
-            # src_encodings = torch.stack(src_encodings)
-            # table_embedding = torch.stack(table_embedding)
-            # schema_embedding = torch.stack(schema_embedding)
+            src_lens = [len(one) for one in src_encodings]
+            table_lens = [len(one) for one in table_embedding]
+            schema_lens = [len(one) for one in schema_embedding]
+
+            cat_embeddings = [one_src + one_table + one_schema for one_src, one_table, one_schema in
+                              zip(src_encodings, table_embedding, schema_embedding)]
+            cat_lens = [len(one) for one in cat_embeddings]
+
+            for b in range(len(cat_embeddings)):
+                cat_embeddings[b] += [torch.zeros_like(cat_embeddings[b][0])] * (max(cat_lens) - len(cat_embeddings[b]))
+                cat_embeddings[b] = torch.stack(cat_embeddings[b])
+            cat_embeddings = torch.stack(cat_embeddings)
+            concat_encodings = torch.cat((last_cell.unsqueeze(1), cat_embeddings), dim=1)
+            rat_encodings = concat_encodings
+            concat_encodings = concat_encodings.transpose(0, 1)
+            rat_encodings = self.rat_encoder(concat_encodings, batch.relation).transpose(0, 1)
+
+            last_cell = rat_encodings[:, 0, :]
+            src_encodings = []
+            table_embedding = []
+            schema_embedding = []
+            for b, (src_len, table_len, schema_len) in enumerate(zip(src_lens, table_lens, schema_lens)):
+                src_encodings.append(rat_encodings[b, 1:1 + src_len, :])
+                table_embedding.append(rat_encodings[b, 1 + src_len:1 + src_len + table_len, :])
+                schema_embedding.append(
+                    rat_encodings[b, 1 + src_len + table_len:1 + src_len + table_len + schema_len, :])
+            for b in range(len(src_lens)):
+                if src_lens[b] < max(src_lens):
+                    padding = torch.zeros((max(src_lens) - src_lens[b], args.hidden_size), dtype=src_encodings[b].dtype,
+                                          device=src_encodings[b].device)
+                    src_encodings[b] = torch.cat((src_encodings[b], padding), dim=0)
+                if table_lens[b] < max(table_lens):
+                    padding = torch.zeros((max(table_lens) - table_lens[b], args.hidden_size),
+                                          dtype=table_embedding[b].dtype, device=table_embedding[b].device)
+                    table_embedding[b] = torch.cat((table_embedding[b], padding), dim=0)
+                if schema_lens[b] < max(schema_lens):
+                    padding = torch.zeros((max(schema_lens) - schema_lens[b], args.hidden_size),
+                                          dtype=schema_embedding[b].dtype, device=schema_embedding[b].device)
+                    schema_embedding[b] = torch.cat((schema_embedding[b], padding), dim=0)
+
+            src_encodings = torch.stack(src_encodings)
+            table_embedding = torch.stack(table_embedding)
+            schema_embedding = torch.stack(schema_embedding)
 
         utterance_encodings_sketch_linear = self.att_sketch_linear(src_encodings)
         utterance_encodings_lf_linear = self.att_lf_linear(src_encodings)
