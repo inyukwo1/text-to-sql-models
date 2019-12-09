@@ -6,7 +6,7 @@ save_name=$2
 CUDA_VISIBLE_DEVICES=$devices python -u train.py --dataset ./data \
 --glove_embed_path ./data/glove.42B.300d.txt \
 --cuda \
---epoch 50 \
+--epoch 150 \
 --loss_epoch_threshold 50 \
 --sketch_loss_coefficie 1.0 \
 --beam_size 5 \
@@ -20,4 +20,4 @@ CUDA_VISIBLE_DEVICES=$devices python -u train.py --dataset ./data \
 --lr_scheduler_gammar 0.5 \
 --att_vec_size 300 \
 --bert 0 \
---batch_size 6
+--batch_size 2

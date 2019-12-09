@@ -65,7 +65,8 @@ def train(args):
 
         model.load_state_dict(pretrained_modeled)
 
-    model.word_emb = utils.load_word_emb(args.glove_embed_path)
+    #model.word_emb = utils.load_word_emb(args.glove_embed_path)
+    model.word_emb = None
     # begin train
 
     model_save_path = utils.init_log_checkpoint_path(args)
@@ -80,24 +81,25 @@ def train(args):
             if scheduler_bert:
                 scheduler_bert.step()
             epoch_begin = time.time()
-            loss = utils.epoch_train(model, optimizer, bert_optimizer, args.batch_size, sql_data, table_data, args,
+            loss = utils.epoch_train(model, optimizer, bert_optimizer, args.batch_size, sql_data, table_data, args, epoch,
                                loss_epoch_threshold=args.loss_epoch_threshold,
                                sketch_loss_coefficient=args.sketch_loss_coefficient)
             epoch_end = time.time()
-            json_datas = utils.epoch_acc(model, args.batch_size, val_sql_data, val_table_data,
-                                         beam_size=args.beam_size)
-            acc, sketch_acc = utils.eval_acc(json_datas, val_sql_data)
+            if epoch % 3 == 0:
+                json_datas = utils.epoch_acc(model, args.batch_size, val_sql_data, val_table_data,
+                                             beam_size=args.beam_size)
+                acc, sketch_acc = utils.eval_acc(json_datas, val_sql_data)
 
-            if acc > best_dev_acc:
-                utils.save_checkpoint(model, os.path.join(model_save_path, 'best_model.model'))
-                best_dev_acc = acc
-            utils.save_checkpoint(model, os.path.join(model_save_path, '{%s}_{%s}.model') % (epoch, acc))
+                if acc > best_dev_acc:
+                    utils.save_checkpoint(model, os.path.join(model_save_path, 'best_model.model'))
+                    best_dev_acc = acc
+                utils.save_checkpoint(model, os.path.join(model_save_path, '{%s}_{%s}.model') % (epoch, acc))
 
-            log_str = 'Epoch: %d, Loss: %f, Sketch Acc: %f, Acc: %f, time: %f\n' % (
-                epoch + 1, loss, sketch_acc, acc, epoch_end - epoch_begin)
-            tqdm.tqdm.write(log_str)
-            epoch_fd.write(log_str)
-            epoch_fd.flush()
+                log_str = 'Epoch: %d, Loss: %f, Sketch Acc: %f, Acc: %f, time: %f\n' % (
+                    epoch + 1, loss, sketch_acc, acc, epoch_end - epoch_begin)
+                tqdm.tqdm.write(log_str)
+                epoch_fd.write(log_str)
+                epoch_fd.flush()
     # except Exception as e:
     #     # Save model
     #     utils.save_checkpoint(model, os.path.join(model_save_path, 'end_model.model'))

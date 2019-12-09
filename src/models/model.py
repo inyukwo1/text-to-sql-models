@@ -28,9 +28,11 @@ MODELS = [(BertModel,       BertTokenizer,       'bert-large-uncased', 1024),
           (GPT2Model,       GPT2Tokenizer,       'gpt2'),
           (CTRLModel,       CTRLTokenizer,       'ctrl'),
           (TransfoXLModel,  TransfoXLTokenizer,  'transfo-xl-wt103'),
-          (XLNetModel,      XLNetTokenizer,      'xlnet-base-cased'),
+          (XLNetModel,      XLNetTokenizer,      'xlnet-large-cased', 1024),
+          (XLNetModel,      XLNetTokenizer,      'xlnet-base-cased', 768),
           (XLMModel,        XLMTokenizer,        'xlm-mlm-enfr-1024'),
           (DistilBertModel, DistilBertTokenizer, 'distilbert-base-uncased'),
+          (RobertaModel,    RobertaTokenizer,    'roberta-large', 1024),
           (RobertaModel,    RobertaTokenizer,    'roberta-base')]
 
 
@@ -400,7 +402,8 @@ class IRNet(BasicModel):
         col_types = []
         for b in range(B):
             word_start_ends = []
-            question = "[CLS]"
+            #question = "[CLS]"
+            question = "<cls>"
             for word in sentences[b]:
                 start = len(self.tokenizer.tokenize(question))
                 for one_word in word:
@@ -410,7 +413,8 @@ class IRNet(BasicModel):
             col_start_ends = []
             for cols in col_sets[b]:
                 start = len(self.tokenizer.tokenize(question))
-                question += " [SEP]"
+                #question += " [SEP]"
+                question += " <sep>"
                 for one_word in cols:
                     question += " " + one_word
                 end = len(self.tokenizer.tokenize(question))
@@ -418,7 +422,8 @@ class IRNet(BasicModel):
             tab_start_ends = []
             for tabs in table_sets[b]:
                 start = len(self.tokenizer.tokenize(question))
-                question += " [SEP]"
+                #question += " [SEP]"
+                question += "<sep>"
                 for one_word in tabs:
                     question += " " + one_word
                 end = len(self.tokenizer.tokenize(question))

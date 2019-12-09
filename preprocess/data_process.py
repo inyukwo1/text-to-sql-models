@@ -51,7 +51,7 @@ def process_datas(datas, args):
                 primary_foreigns.add(f)
                 primary_foreigns.add(p)
 
-            conn = sqlite3.connect("../data/wikitablequestions/database/{}/{}.sqlite".format(db_id, db_id))
+            conn = sqlite3.connect("../data/database/{}/{}.sqlite".format(db_id, db_id))
             # conn.text_factory = bytes
             cursor = conn.cursor()
 

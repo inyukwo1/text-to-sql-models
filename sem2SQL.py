@@ -849,7 +849,7 @@ if __name__ == '__main__':
 
     with open(args.output_path, 'w', encoding='utf8') as d:
         for i in index:
-            if i == 888:
+            if i == 57:
                 stop = 1
             try:
                 result = transform(datas[i], schemas[datas[i]['db_id']], i)
