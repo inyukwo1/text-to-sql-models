@@ -16,7 +16,7 @@ def init_arg_parser():
     arg_parser.add_argument('--seed', default=5783287, type=int, help='random seed')
     arg_parser.add_argument('--cuda', action='store_true', help='use gpu')
     arg_parser.add_argument('--lr_scheduler', action='store_true', help='use learning rate scheduler')
-    arg_parser.add_argument('--milestones', default=[15, 19, 30, 50], type=list, help='milestones for lr scheduler')
+    arg_parser.add_argument('--milestones', default=[30, 50], type=list, help='milestones for lr scheduler')
     arg_parser.add_argument('--lr_scheduler_gammar', default=1e-1, type=float, help='decay rate of learning rate scheduler')
     arg_parser.add_argument('--column_pointer', action='store_true', help='use column pointer')
     arg_parser.add_argument('--loss_epoch_threshold', default=20, type=int, help='loss epoch threshold')
@@ -57,8 +57,8 @@ def init_arg_parser():
     arg_parser.add_argument('--clip_grad', default=5., type=float, help='clip gradients')
     arg_parser.add_argument('--max_epoch', default=-1, type=int, help='maximum number of training epoches')
     arg_parser.add_argument('--optimizer', default='Adam', type=str, help='optimizer')
-    arg_parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
-    arg_parser.add_argument('--bert_lr', default=1e-5, type=float, help='bert learning rate')
+    arg_parser.add_argument('--lr', default=1e-5, type=float, help='learning rate')
+    arg_parser.add_argument('--bert_lr', default=1e-6, type=float, help='bert learning rate')
 
     arg_parser.add_argument('--dataset', default="./data", type=str)
 

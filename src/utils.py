@@ -337,17 +337,19 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
         for sql in sql_data:
             if sql["db_id"] != "baseball_1":
                 new_sql_data.append(sql)
+    else:
+        new_sql_data = sql_data
 
     sql_data = new_sql_data
     perm=np.random.permutation(len(sql_data))
     cum_loss = 0.0
     st = 0
+    optimizer.zero_grad()
+    if bert_optimizer:
+        bert_optimizer.zero_grad()
     for st in tqdm(range(0, len(sql_data), batch_size)):
         ed = st+batch_size if st+batch_size < len(perm) else len(perm)
         examples = to_batch_seq(sql_data, table_data, perm, st, ed)
-        optimizer.zero_grad()
-        if bert_optimizer:
-            bert_optimizer.zero_grad()
 
         score = model.forward(examples)
         if score[0] is None:
@@ -358,17 +360,25 @@ def epoch_train(model, optimizer, bert_optimizer, batch_size, sql_data, table_da
         loss_sketch = torch.mean(loss_sketch)
         loss_lf = torch.mean(loss_lf)
 
-        if epoch > loss_epoch_threshold:
-            loss = loss_lf + sketch_loss_coefficient * loss_sketch
-        else:
-            loss = loss_lf + loss_sketch
+        #if epoch > loss_epoch_threshold:
+        #    loss = loss_lf + sketch_loss_coefficient * loss_sketch
+        #else:
+        #    loss = loss_lf + loss_sketch
 
+        loss = loss_lf + loss_sketch
+        loss = loss / 3
         loss.backward()
         if args.clip_grad > 0.:
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad)
-        optimizer.step()
-        if bert_optimizer:
-            bert_optimizer.step()
+
+        if epoch % 3 == 0:
+            optimizer.step()
+            if bert_optimizer:
+                bert_optimizer.step()
+            optimizer.zero_grad()
+            if bert_optimizer:
+                bert_optimizer.zero_grad()
+
         cum_loss += loss.data.cpu().numpy()*(ed - st)
     return cum_loss / len(sql_data)
 
